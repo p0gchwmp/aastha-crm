@@ -1,0 +1,77 @@
+databases:
+  - name: aastha-phase1-staging-db
+    databaseName: aastha_phase1_staging
+    user: aastha_phase1_staging
+    plan: free
+    region: singapore
+    postgresMajorVersion: "16"
+    ipAllowList: []
+
+services:
+  - type: web
+    name: aastha-phase1-api-staging
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    autoDeployTrigger: off
+    dockerContext: ./apps/api
+    dockerfilePath: ./apps/api/Dockerfile.prod
+    dockerCommand: >-
+      /bin/sh -c 'alembic upgrade head && python -m app.seed && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --workers ${API_WORKERS:-1} --proxy-headers --forwarded-allow-ips="*"'
+    healthCheckPath: /health/ready
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aastha-phase1-staging-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ACCESS_TOKEN_MINUTES
+        value: "480"
+      - key: API_CORS_ORIGINS
+        value: https://aastha-phase1-web-staging.onrender.com
+      - key: TRUSTED_HOSTS
+        value: aastha-phase1-api-staging.onrender.com
+      - key: API_DOCS_ENABLED
+        value: "false"
+      - key: API_WORKERS
+        value: "1"
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: DB_MAX_OVERFLOW
+        value: "5"
+      - key: BOOTSTRAP_SUPER_ADMIN_PASSWORD
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: BOOTSTRAP_RECEPTION_PASSWORD
+        sync: false
+      - key: BOOTSTRAP_SUPER_RECEPTION_PASSWORD
+        sync: false
+      - key: BOOTSTRAP_DOCTOR_PASSWORD
+        sync: false
+    buildFilter:
+      paths:
+        - apps/api/**
+        - render.yaml
+
+  - type: web
+    name: aastha-phase1-web-staging
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    autoDeployTrigger: off
+    dockerContext: ./apps/web
+    dockerfilePath: ./apps/web/Dockerfile.prod
+    healthCheckPath: /login
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://aastha-phase1-api-staging.onrender.com/api/v1
+    buildFilter:
+      paths:
+        - apps/web/**
+        - render.yaml
