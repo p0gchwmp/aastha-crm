@@ -1,5 +1,5 @@
 from functools import lru_cache
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +19,15 @@ class Settings(BaseSettings):
     db_max_overflow: int = 20
     db_pool_timeout_seconds: int = 30
     db_pool_recycle_seconds: int = 1800
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def use_psycopg_driver_for_render_url(cls, value):
+        if isinstance(value, str) and value.startswith("postgresql://"):
+            return "postgresql+psycopg://" + value.removeprefix("postgresql://")
+        if isinstance(value, str) and value.startswith("postgres://"):
+            return "postgresql+psycopg://" + value.removeprefix("postgres://")
+        return value
 
     @property
     def is_production(self) -> bool:
