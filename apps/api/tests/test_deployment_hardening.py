@@ -108,3 +108,12 @@ def test_preflight_accepts_strong_local_production_env(tmp_path):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "Preflight PASSED" in result.stdout
+
+def test_render_postgres_url_uses_psycopg_driver():
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql://render_user:strongpassword@internal-db:5432/aastha",
+    )
+    assert settings.database_url == (
+        "postgresql+psycopg://render_user:strongpassword@internal-db:5432/aastha"
+    )
