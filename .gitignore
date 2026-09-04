@@ -1,10 +1,35 @@
+# Environment and secrets
 .env
+.env.*
+!.env.example
+!.env.production.example
+secrets/
+*.pem
+*.key
+
+# Patient data, imports, and database backups
+backups/
+uploads/
+patient-data/
+imports/private/
+*.sql
+*.dump
+*.backup
+*.bak
+
+# Python
 __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+coverage/
+
+# Node / Next.js
 node_modules/
 .next/
-coverage/
+*.tsbuildinfo
+
+# Logs and operating-system files
 *.log
 .DS_Store
+Thumbs.db
