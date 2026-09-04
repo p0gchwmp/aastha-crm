@@ -57,13 +57,15 @@ def test_production_compose_keeps_database_internal_and_no_dev_seed():
     assert "Dockerfile.prod" in compose
 
 
-def test_production_containers_drop_root_and_web_builds_release():
+def test_production_containers_drop_root_and_bind_render_port():
     api_docker = (ROOT / "apps/api/Dockerfile.prod").read_text()
     web_docker = (ROOT / "apps/web/Dockerfile.prod").read_text()
     assert "USER aastha" in api_docker
     assert "USER aastha" in web_docker
     assert "npm run build" in web_docker
-    assert 'npm", "run", "start' in web_docker
+    assert "npm run start" in web_docker
+    assert "${PORT:-8000}" in api_docker
+    assert "${PORT:-3000}" in web_docker
 
 
 def test_login_page_does_not_ship_seeded_passwords():
@@ -108,6 +110,7 @@ def test_preflight_accepts_strong_local_production_env(tmp_path):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "Preflight PASSED" in result.stdout
+
 
 def test_render_postgres_url_uses_psycopg_driver():
     settings = Settings(
