@@ -2,7 +2,9 @@ databases:
   - name: aastha-phase1-staging-db
     databaseName: aastha_phase1_staging
     user: aastha_phase1_staging
-    plan: free
+    plan: 0.1c-256mb
+    diskSizeGB: 1
+    storageAutoscalingEnabled: false
     region: singapore
     postgresMajorVersion: "16"
     ipAllowList: []
