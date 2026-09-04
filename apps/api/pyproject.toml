@@ -1,0 +1,26 @@
+[project]
+name = "aastha-crm-api"
+version = "0.1.0"
+description = "Aastha CRM Phase 1 API"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.128",
+  "uvicorn[standard]>=0.30",
+  "sqlalchemy>=2.0",
+  "alembic>=1.14",
+  "psycopg[binary]>=3.2",
+  "pydantic-settings>=2.7",
+  "PyJWT>=2.10",
+  "python-multipart>=0.0.20",
+  "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.28", "ruff>=0.8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100

@@ -1,0 +1,117 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - aastha_pg_prod:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [backend]
+
+  migrate:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.prod
+    environment:
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      API_CORS_ORIGINS: ${API_CORS_ORIGINS}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS}
+      API_DOCS_ENABLED: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    networks: [backend]
+
+  bootstrap:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.prod
+    environment:
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      API_CORS_ORIGINS: ${API_CORS_ORIGINS}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS}
+      API_DOCS_ENABLED: "false"
+      BOOTSTRAP_SUPER_ADMIN_PASSWORD: ${BOOTSTRAP_SUPER_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_RECEPTION_PASSWORD: ${BOOTSTRAP_RECEPTION_PASSWORD:-}
+      BOOTSTRAP_SUPER_RECEPTION_PASSWORD: ${BOOTSTRAP_SUPER_RECEPTION_PASSWORD:-}
+      BOOTSTRAP_DOCTOR_PASSWORD: ${BOOTSTRAP_DOCTOR_PASSWORD:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: ["python", "-m", "app.seed"]
+    restart: "no"
+    networks: [backend]
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-480}
+      API_CORS_ORIGINS: ${API_CORS_ORIGINS}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS}
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-false}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-20}
+      API_WORKERS: ${API_WORKERS:-2}
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: /api/v1
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [frontend, backend]
+
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${CRM_HTTP_PORT:-8080}:8080"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      web:
+        condition: service_started
+      api:
+        condition: service_healthy
+    networks: [frontend, backend]
+
+networks:
+  frontend:
+  backend:
+
+volumes:
+  aastha_pg_prod:

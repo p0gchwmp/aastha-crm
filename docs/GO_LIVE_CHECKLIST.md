@@ -1,0 +1,29 @@
+# AASTHA CRM — Go-Live Checklist
+
+- [ ] `.env.production` contains no placeholders and is mode 600.
+- [ ] TLS/HTTPS or trusted private network/VPN is active.
+- [ ] Docker/Compose production build succeeds.
+- [ ] `migrate` service exits successfully.
+- [ ] `bootstrap` service exits successfully.
+- [ ] `/health/live` and `/health/ready` return 200.
+- [ ] Reception, Super Reception, Admin, Super Admin and Doctor can log in.
+- [ ] Initial passwords changed using **My Password**.
+- [ ] Branch restrictions validated.
+- [ ] Reception/Super Reception bulk exports blocked.
+- [ ] DNC third-party/export enforcement validated.
+- [ ] Lead → Appointment → Patient → UHID → Visit tested.
+- [ ] Shared-mobile family workflow tested.
+- [ ] Locality/Chief Complaint maker-checker tested.
+- [ ] 10-day per-patient free follow-up tested.
+- [ ] Concurrent bill numbering test passed.
+- [ ] Concurrent free-follow-up consumption test passed.
+- [ ] Consultation payment/correction/audit tested.
+- [ ] Doctor complimentary tested.
+- [ ] Legacy import finance firewall tested.
+- [ ] Procedure Order → Finance status → Execution tested.
+- [ ] Inventory event after completed execution tested.
+- [ ] Backup created and verified.
+- [ ] Temporary restore drill passed.
+- [ ] Off-host/encrypted backup destination configured.
+- [ ] Consultation Bill number format confirmed with clinic accountant/CA.
+- [ ] Clinic UAT signed off.
