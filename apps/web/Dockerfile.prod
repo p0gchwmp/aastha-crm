@@ -20,4 +20,4 @@ RUN addgroup -S aastha && adduser -S aastha -G aastha
 COPY --from=builder --chown=aastha:aastha /app .
 USER aastha
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["sh", "-c", "exec npm run start -- -p ${PORT:-3000}"]
