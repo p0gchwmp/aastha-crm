@@ -1,0 +1,56 @@
+name: CRM CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install API dependencies
+        run: pip install -e ".[dev]"
+      - name: Run API tests
+        run: pytest -q
+
+  web-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install web dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build Next.js
+        env:
+          NEXT_PUBLIC_API_URL: https://aastha-phase1-api-staging.onrender.com/api/v1
+        run: npm run build
+
+  production-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API production image
+        run: docker build -f apps/api/Dockerfile.prod -t aastha-crm-api:ci apps/api
+      - name: Build web production image
+        run: >-
+          docker build
+          --build-arg NEXT_PUBLIC_API_URL=https://aastha-phase1-api-staging.onrender.com/api/v1
+          -f apps/web/Dockerfile.prod
+          -t aastha-crm-web:ci
+          apps/web
