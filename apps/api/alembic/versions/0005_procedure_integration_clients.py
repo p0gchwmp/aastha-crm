@@ -1,13 +1,13 @@
 """Procedure integration client tenant scope.
 
-Revision ID: 0005_procedure_integration_clients
+Revision ID: 0005_integration_clients
 Revises: 0004_change_request_tenant_scope
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision = "0005_procedure_integration_clients"
+revision = "0005_integration_clients"
 down_revision = "0004_change_request_tenant_scope"
 branch_labels = None
 depends_on = None
