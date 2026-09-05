@@ -1,6 +1,6 @@
 """consultation finance integrity constraints
 
-Revision ID: 0002_consultation_finance_integrity
+Revision ID: 0002_finance_integrity
 Revises: 0001_initial
 Create Date: 2026-09-03
 
@@ -9,7 +9,7 @@ This revision upgrades databases created by the prior Patient/Visit milestone.
 """
 from alembic import op
 
-revision = "0002_consultation_finance_integrity"
+revision = "0002_finance_integrity"
 down_revision = "0001_initial"
 branch_labels = None
 depends_on = None
