@@ -131,3 +131,27 @@ def test_render_blueprint_uses_start_script_without_nested_shell():
     assert "python -m app.seed" in start_script
     assert 'exec uvicorn app.main:app' in start_script
     assert '${PORT:-10000}' in start_script
+
+
+def test_alembic_revision_ids_fit_postgres_version_table_and_form_chain():
+    import ast
+
+    versions_dir = ROOT / "apps/api/alembic/versions"
+    migrations = []
+    for path in sorted(versions_dir.glob("*.py")):
+        values = {}
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                target = node.targets[0]
+                if isinstance(target, ast.Name) and target.id in {"revision", "down_revision"}:
+                    values[target.id] = ast.literal_eval(node.value)
+        revision = values["revision"]
+        assert len(revision) <= 32, f"{path.name}: revision ID exceeds Alembic's VARCHAR(32)"
+        migrations.append((path.name, revision, values["down_revision"]))
+
+    known_revisions = {revision for _, revision, _ in migrations}
+    for filename, _, down_revision in migrations:
+        assert down_revision is None or down_revision in known_revisions, (
+            f"{filename}: unknown down_revision {down_revision}"
+        )
