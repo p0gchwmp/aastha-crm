@@ -120,3 +120,14 @@ def test_render_postgres_url_uses_psycopg_driver():
     assert settings.database_url == (
         "postgresql+psycopg://render_user:strongpassword@internal-db:5432/aastha"
     )
+
+
+def test_render_blueprint_uses_start_script_without_nested_shell():
+    blueprint = (ROOT / "render.yaml").read_text()
+    start_script = (ROOT / "apps/api/render-start.sh").read_text()
+    assert "dockerCommand: /bin/sh ./render-start.sh" in blueprint
+    assert "/bin/sh -c" not in blueprint
+    assert "alembic upgrade head" in start_script
+    assert "python -m app.seed" in start_script
+    assert 'exec uvicorn app.main:app' in start_script
+    assert '${PORT:-10000}' in start_script
