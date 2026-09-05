@@ -24,6 +24,48 @@ jobs:
       - name: Run API tests
         run: pytest -q
 
+  postgres-migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: aastha_ci
+          POSTGRES_USER: aastha
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aastha -d aastha_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      DATABASE_URL: postgresql+psycopg://aastha:ci-only-password@localhost:5432/aastha_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install API dependencies
+        run: pip install -e .
+      - name: Migrate blank PostgreSQL database
+        run: alembic upgrade head
+      - name: Verify migration head and table count
+        run: >-
+          python -c "import os;
+          from sqlalchemy import create_engine, text;
+          engine=create_engine(os.environ['DATABASE_URL']);
+          connection=engine.connect();
+          version=connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one();
+          tables=connection.execute(text(\"SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')\")).scalar_one();
+          connection.close();
+          assert version == '0005_integration_clients', version;
+          assert tables >= 63, tables"
+
   web-build:
     runs-on: ubuntu-latest
     defaults:
