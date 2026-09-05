@@ -1,13 +1,13 @@
 """operational hardening: import tenant scope
 
 Revision ID: 0003_operational_hardening
-Revises: 0002_consultation_finance_integrity
+Revises: 0002_finance_integrity
 Create Date: 2026-09-03
 """
 from alembic import op
 
 revision = "0003_operational_hardening"
-down_revision = "0002_consultation_finance_integrity"
+down_revision = "0002_finance_integrity"
 branch_labels = None
 depends_on = None
 
