@@ -14,6 +14,35 @@ from app.services import procedures as procedure_service
 router = APIRouter(prefix="/external/procedures", tags=["procedure-integrations"])
 
 
+@router.get("/services")
+def external_services(
+    db: Session = Depends(get_db),
+    client: IntegrationClient = Depends(require_integration_scope("procedure_order.read")),
+):
+    """Finance-safe projection of the active Procedure Service Master.
+
+    This is intentionally separate from Procedure Orders: creating a master
+    service does not create a patient order/event. Commercial uses this feed
+    to configure prices before the first patient is ordered that service.
+    """
+    rows = list(db.scalars(
+        select(Service).where(
+            Service.organization_id == client.organization_id,
+            Service.active.is_(True),
+            Service.clinical_type != "CONSULTATION",
+        ).order_by(Service.service_name)
+    ).all())
+    return [
+        {
+            "service_id": x.service_id,
+            "code": x.service_code,
+            "name": x.service_name,
+            "clinical_type": x.clinical_type,
+        }
+        for x in rows
+    ]
+
+
 @router.get("/orders/{order_id}")
 def external_order(
     order_id: uuid.UUID,
