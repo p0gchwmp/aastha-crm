@@ -15,9 +15,9 @@ test('Admin manages reception and first-login passwords are enforced',async({bro
   await admin.getByRole('button',{name:'Add receptionist',exact:true}).click();
   const username=`uat.reception.${Date.now()}`;
   await admin.getByLabel('Staff name',{exact:true}).fill('Fictional Reception Test');
-  await admin.getByLabel('Username',{exact:true}).fill(username);
+  await admin.getByRole('textbox',{name:/^Username/}).fill(username);
   await admin.getByLabel('Paloura',{exact:true}).check();
-  await admin.getByLabel('Temporary password',{exact:true}).fill(initial);
+  await admin.getByLabel(/^Temporary password/).fill(initial);
   await admin.getByRole('button',{name:'Create account',exact:true}).click();
   await expect(admin.getByRole('status')).toContainText('Reception account created');
   const row=admin.getByRole('row').filter({hasText:username});await expect(row).toBeVisible();
@@ -41,7 +41,7 @@ test('Admin manages reception and first-login passwords are enforced',async({bro
   await admin.getByRole('button',{name:'Save changes',exact:true}).click();
   await expect(admin.getByRole('status')).toContainText('Account updated');
   await row.getByRole('button',{name:'Reset password',exact:true}).click();
-  await admin.getByLabel('Temporary password',{exact:true}).fill(reset);
+  await admin.getByLabel(/^Temporary password/).fill(reset);
   await admin.getByLabel('Reason for change',{exact:true}).fill('UAT reset test');
   await admin.getByRole('button',{name:'Reset password',exact:true}).click();
   await expect(admin.getByRole('status')).toContainText('Password reset');
