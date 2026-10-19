@@ -33,3 +33,8 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+*.egg-info/
+
+apps/web/test-results/
+apps/web/playwright-report/

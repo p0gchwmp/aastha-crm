@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, date
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, func
 from sqlalchemy.orm import Session
 from app.core.access import allowed_branch_ids
 from app.core.db import get_db
@@ -23,12 +23,12 @@ class ChangePasswordRequest(BaseModel):
 
 @router.post("/login")
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.username == payload.username, User.status == "ACTIVE"))
+    user = db.scalar(select(User).where(func.lower(User.username) == payload.username.strip().lower(), User.status == "ACTIVE"))
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     user.last_login = datetime.now(timezone.utc)
     db.commit()
-    return {"access_token": create_access_token(str(user.user_id)), "token_type": "bearer"}
+    return {"access_token": create_access_token(str(user.user_id), user.session_version), "token_type": "bearer"}
 
 
 @router.post("/change-password")
@@ -40,7 +40,17 @@ def change_password(payload: ChangePasswordRequest, user: User = Depends(current
     lowered = payload.new_password.lower()
     if "password" in lowered or "changeme" in lowered or "replace" in lowered:
         raise HTTPException(status_code=400, detail="Choose a stronger non-placeholder password")
+    # Serialize credential changes with Admin resets and reject a stale old password.
+    db.refresh(user, with_for_update=True)
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(status_code=409, detail="Credentials changed. Sign in again")
     user.password_hash = hash_password(payload.new_password)
+    user.must_change_password = False
+    user.session_version += 1
+    user.row_version += 1
+    from app.services.audit import log_audit
+    log_audit(db, organization_id=user.organization_id, entity_type="STAFF_USER", entity_id=user.user_id,
+              action="PASSWORD_CHANGED", actor_user_id=user.user_id)
     db.commit()
     return {"status": "PASSWORD_CHANGED"}
 
@@ -66,6 +76,7 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     ).all())
     branches = allowed_branch_ids(db, user)
     return {
+        "must_change_password": user.must_change_password,
         "user_id": user.user_id,
         "organization_id": user.organization_id,
         "name": user.name,
