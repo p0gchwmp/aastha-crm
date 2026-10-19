@@ -39,6 +39,8 @@ class User(Base, TimestampMixin):
     email: Mapped[str | None] = mapped_column(String(200))
     password_hash: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(30), default="ACTIVE")
+    session_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

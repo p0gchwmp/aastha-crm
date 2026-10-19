@@ -51,7 +51,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install API dependencies
-        run: pip install -e .
+        run: pip install -e ".[dev]"
       - name: Migrate blank PostgreSQL database
         run: alembic upgrade head
       - name: Verify migration head and table count
@@ -63,8 +63,71 @@ jobs:
           version=connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one();
           tables=connection.execute(text(\"SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')\")).scalar_one();
           connection.close();
-          assert version == '0005_integration_clients', version;
+          assert version == '0006_staff_access', version;
           assert tables >= 63, tables"
+
+      - name: Test reception staff lifecycle on PostgreSQL
+        env:
+          STAFF_TEST_DATABASE_URL: postgresql+psycopg://aastha:ci-only-password@localhost:5432/aastha_ci
+        run: pytest -q tests/test_staff_access.py
+      - name: Verify upgrade of a populated pre-staff database
+        run: |
+          python -c "import os; from sqlalchemy import create_engine,text; c=create_engine(os.environ['DATABASE_URL']).connect(); assert c.execute(text('SELECT count(*) FROM core.users')).scalar_one() > 0"
+          alembic downgrade 0005_integration_clients
+          alembic upgrade head
+          STAFF_TEST_DATABASE_URL="$DATABASE_URL" pytest -q tests/test_staff_access.py
+
+  staff-browser:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: aastha_staff_browser
+          POSTGRES_USER: aastha
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U aastha -d aastha_staff_browser"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql+psycopg://aastha:ci-only-password@localhost:5432/aastha_staff_browser
+      JWT_SECRET: isolated-browser-test-signing-key-not-production
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8000/api/v1
+      API_CORS_ORIGINS: http://127.0.0.1:3000
+      STAFF_ADMIN_USERNAME: admin
+      STAFF_ADMIN_PASSWORD: Browser!Admin2026
+      BOOTSTRAP_SUPER_ADMIN_PASSWORD: Browser!Admin2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Start isolated API with PostgreSQL
+        working-directory: apps/api
+        run: |
+          pip install -e .
+          alembic upgrade head
+          python -m app.seed
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/staff-api.log 2>&1 &
+      - name: Build and start web app
+        working-directory: apps/web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          npm start -- -p 3000 > /tmp/staff-web.log 2>&1 &
+      - name: Exercise reception staff lifecycle in Chromium
+        working-directory: apps/web
+        run: |
+          npx playwright install --with-deps chromium
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3000/login > /dev/null && break || sleep 2; done
+          npx playwright test
+      - name: Logs on failure
+        if: failure()
+        run: cat /tmp/staff-api.log /tmp/staff-web.log
 
   web-build:
     runs-on: ubuntu-latest
@@ -77,7 +140,7 @@ jobs:
         with:
           node-version: "22"
       - name: Install web dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Build Next.js
         env:
           NEXT_PUBLIC_API_URL: https://aastha-phase1-api-staging.onrender.com/api/v1

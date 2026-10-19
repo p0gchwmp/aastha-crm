@@ -15,7 +15,7 @@ export default function AccountPage(){
     setBusy(true);
     try{
       await apiFetch("/auth/change-password",{method:"POST",body:JSON.stringify({current_password:currentPassword,new_password:newPassword})});
-      setCurrentPassword("");setNewPassword("");setConfirmPassword("");setMessage("Password changed successfully.");
+      setCurrentPassword("");setNewPassword("");setConfirmPassword("");localStorage.removeItem("aastha_token");window.location.assign("/login?passwordChanged=1");
     }catch(e){setError(e instanceof Error?e.message:"Password change failed");}finally{setBusy(false);}
   }
   return <section className="page"><div className="page-head"><div><div className="eyebrow">ACCOUNT SECURITY</div><h1>Change password</h1></div></div>

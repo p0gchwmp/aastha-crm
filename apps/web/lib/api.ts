@@ -9,7 +9,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const detail = body?.detail;
-    const message = typeof detail === "string" ? detail : detail?.message || `Request failed: ${response.status}`;
+    const message = Array.isArray(detail) ? detail.map((x:{loc?:string[];msg?:string})=>`${x.loc?.slice(1).join(" ")}: ${x.msg}`).join("; ") : typeof detail === "string" ? detail : detail?.message || `Request failed: ${response.status}`;
     const error = new Error(message) as Error & {status?:number;detail?:unknown};
     error.status = response.status;
     error.detail = detail;

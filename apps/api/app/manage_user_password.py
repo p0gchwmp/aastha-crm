@@ -22,6 +22,12 @@ def main() -> int:
         if not user:
             raise SystemExit("User not found")
         user.password_hash = hash_password(new_password)
+        user.session_version += 1
+        user.row_version += 1
+        user.must_change_password = True
+        from app.services.audit import log_audit
+        log_audit(db, organization_id=user.organization_id, entity_type="STAFF_USER",
+                  entity_id=user.user_id, action="EMERGENCY_PASSWORD_RESET", actor_user_id=None)
         db.commit()
         print(f"Password reset completed for {args.username}. Password was not printed.")
         return 0
