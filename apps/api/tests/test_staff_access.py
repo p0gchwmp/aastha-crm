@@ -132,6 +132,8 @@ def test_staff_boundaries_and_duplicate_usernames(clinic):
     r = create(clinic); assert r.status_code == 201
     assert create(clinic, username=r.json()["username"].upper()).status_code == 409
     payload = {"name":"Attempt", "role":"RECEPTIONIST", "branch_ids":[str(branches[0].branch_id)], "status":"INACTIVE", "row_version":1, "reason":"Try privileged account"}
+    staff_id = r.json()["user_id"]
+    assert c.patch(f"/api/v1/admin/staff/{staff_id}", headers=admin, json={**payload,"reason":"   "}).status_code == 422
     for code in ("ADMIN","SUPER_ADMIN","DOCTOR"):
         assert c.patch(f"/api/v1/admin/staff/{users[code].user_id}", headers=admin, json=payload).status_code == 403
     assert c.patch(f"/api/v1/admin/staff/{uuid.uuid4()}", headers=admin, json=payload).status_code == 404

@@ -54,6 +54,11 @@ class StaffUpdate(StaffFields):
     status: Literal["ACTIVE", "INACTIVE"]
     reason: str = Field(min_length=3, max_length=500)
 
+    @field_validator("reason", mode="before")
+    @classmethod
+    def clean_reason(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
 
 class StaffReset(BaseModel):
     model_config = ConfigDict(extra="forbid")
