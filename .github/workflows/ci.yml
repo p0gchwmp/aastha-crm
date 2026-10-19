@@ -76,6 +76,23 @@ jobs:
           alembic downgrade 0005_integration_clients
           alembic upgrade head
           STAFF_TEST_DATABASE_URL="$DATABASE_URL" pytest -q tests/test_staff_access.py
+      - name: Verify logical backup and restore of the test database
+        run: |
+          docker exec ${{ job.services.postgres.id }} pg_dump -U aastha -d aastha_ci -Fc > /tmp/staff-ci.dump
+          docker exec ${{ job.services.postgres.id }} createdb -U aastha aastha_restore
+          docker exec -i ${{ job.services.postgres.id }} pg_restore --exit-on-error -U aastha -d aastha_restore < /tmp/staff-ci.dump
+          python - <<'PYTEST'
+          import os
+          from sqlalchemy import create_engine, text
+          source = create_engine(os.environ['DATABASE_URL'])
+          restored = create_engine(os.environ['DATABASE_URL'].rsplit('/', 1)[0] + '/aastha_restore')
+          with source.connect() as a, restored.connect() as b:
+              for table in ('core.users', 'core.user_roles', 'audit.audit_events'):
+                  sql = text('SELECT count(*) FROM ' + table)
+                  assert a.execute(sql).scalar_one() == b.execute(sql).scalar_one(), table
+              assert b.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0006_staff_access'
+          print('Logical backup restored; staff, access assignments, audit counts and migration version match')
+          PYTEST
 
   staff-browser:
     runs-on: ubuntu-latest

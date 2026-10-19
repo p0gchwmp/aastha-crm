@@ -43,7 +43,7 @@ test('Admin manages reception and first-login passwords are enforced',async({bro
   await row.getByRole('button',{name:'Reset password',exact:true}).click();
   await admin.getByLabel(/^Temporary password/).fill(reset);
   await admin.getByLabel('Reason for change',{exact:true}).fill('UAT reset test');
-  await admin.getByRole('button',{name:'Reset password',exact:true}).click();
+  await admin.locator('form').getByRole('button',{name:'Reset password',exact:true}).click();
   await expect(admin.getByRole('status')).toContainText('Password reset');
   await staff.goto('/account');await expect(staff).toHaveURL(/\/login$/);
   await login(staff,username,reset);await expect(staff).toHaveURL(/\/account$/);
