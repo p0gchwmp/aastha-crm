@@ -116,6 +116,7 @@ def list_leads(
     q: str | None = Query(default=None),
     status_code: str | None = Query(default=None),
     followups_due: bool = Query(default=False),
+    dnc: bool | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=250),
     offset: int = Query(default=0, ge=0),
     owner_id: uuid.UUID | None = Query(default=None),
@@ -126,6 +127,8 @@ def list_leads(
     allowed = allowed_branch_ids(db, user)
     if allowed is not None:
         stmt = stmt.where((Lead.preferred_branch_id.in_(allowed)) | (Lead.preferred_branch_id.is_(None)))
+    if dnc is not None:
+        stmt = stmt.where(Lead.dnc.is_(dnc))
     if owner_id:
         stmt = stmt.where(Lead.lead_owner_user_id == owner_id)
     if status_code:

@@ -109,3 +109,29 @@ def test_lead_branch_and_owner_boundaries(leads):
     assert c.get("/api/v1/leads",headers=login(users["DOCTOR"].username)).status_code==403
     ids={x["id"] for x in c.get("/api/v1/leads/owners",headers=admin).json()}
     assert str(users["RECEPTIONIST"].user_id) in ids and str(users["DOCTOR"].user_id) not in ids
+
+
+def test_dnc_filter_is_independent_of_lifecycle_and_branch_safe(leads):
+    (c,db,branches,users,admin,login),create,statuses,lost=leads
+    normal=create(lead_name="Normal inquiry").json()
+    protected=create(lead_name="DNC inquiry").json()
+    other_branch=create(branch=1,lead_name="Other branch DNC").json()
+    for row in (protected,other_branch):
+        r=c.post(f"/api/v1/leads/{row['lead_id']}/dnc",headers=admin,json={"dnc":True,"reason":"Requested no outbound contact","row_version":row["row_version"]})
+        assert r.status_code==200,r.text
+    headers=login(users["RECEPTIONIST"].username)
+    def ids(query):
+        r=c.get("/api/v1/leads?"+query,headers=headers)
+        assert r.status_code==200,r.text
+        return {row["lead_id"] for row in r.json()}
+    assert ids("dnc=true")=={protected["lead_id"]}
+    assert ids("dnc=false")=={normal["lead_id"]}
+    assert ids("dnc=true&status_code=NEW")=={protected["lead_id"]}
+    assert ids("dnc=true&status_code=LOST")==set()
+    assert ids("")=={protected["lead_id"],normal["lead_id"]}
+    row=c.get(f"/api/v1/leads/{protected['lead_id']}",headers=admin).json()
+    assert row["status_code"]=="NEW" and row["dnc"] is True
+    assert c.get("/api/v1/leads?dnc=invalid",headers=headers).status_code==422
+    for code in ("CONVERTED","NO_SHOW"):
+        r=c.patch(f"/api/v1/leads/{normal['lead_id']}",headers=headers,json={"lead_status_id":str(statuses[code].lead_status_id),"row_version":normal["row_version"]})
+        assert r.status_code==409,r.text

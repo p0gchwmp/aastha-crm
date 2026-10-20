@@ -22,3 +22,11 @@ Use fictional details and a test number, never send real messages during UAT.
 API tests cover the HTTP lifecycle, shared-mobile separation, no Patient creation, status/DNC/audit history, stale updates, branch boundaries, owner validation and permission denials. GitHub CI also runs these tests against PostgreSQL 16. Chromium CI exercises create/edit/assignment/follow-up/lost/reopen/DNC/inbound/shared-mobile and mobile controls, alongside the existing Staff Access regression.
 
 Automated checks do not replace Reception acceptance of the deployed screen. Do not start another module until this checklist passes.
+
+## Status and DNC controls
+
+The edit form shows **Current status** separately and labels the dropdown **Change Lead status**. Staff-managed choices are New, Follow Up Required, Lost and Spam Fake. Other lifecycle statuses remain visible as disabled options with the workflow that sets them. Lost and No Show require the dedicated Reopen Lead action before changing status; Converted remains protected while demographics may still be edited.
+
+The lifecycle Status filter excludes Do Not Call. DNC has its own **Any DNC setting / DNC on / DNC off** filter and can be combined with lifecycle, owner, search and branch restrictions. DNC continues to use the existing server-enforced flag and audited actions. No records, history or database masters are removed or migrated.
+
+Acceptance: open a New Lead and confirm the current status and disabled workflow options; open a Lost Lead and confirm the reopening explanation; mark DNC without changing lifecycle status and verify DNC on/off and combined status filters.
