@@ -87,11 +87,11 @@ jobs:
           source = create_engine(os.environ['DATABASE_URL'])
           restored = create_engine(os.environ['DATABASE_URL'].rsplit('/', 1)[0] + '/aastha_restore')
           with source.connect() as a, restored.connect() as b:
-              for table in ('core.users', 'core.user_roles', 'audit.audit_events'):
+              for table in ('core.users', 'core.user_roles', 'audit.audit_events', 'crm.leads', 'crm.lead_contacts', 'crm.lead_interactions', 'crm.lead_status_history', 'crm.lead_dnc_history'):
                   sql = text('SELECT count(*) FROM ' + table)
                   assert a.execute(sql).scalar_one() == b.execute(sql).scalar_one(), table
               assert b.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0006_staff_access'
-          print('Logical backup restored; staff, access assignments, audit counts and migration version match')
+          print('Logical backup restored; staff, Lead records, histories, audit and migration version match')
           PYTEST
 
   staff-browser:
