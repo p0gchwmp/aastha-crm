@@ -67,9 +67,17 @@ def test_lead_shared_mobile_edit_followup_lost_reopen_history(leads):
 def test_dnc_outbound_denied_inbound_allowed(leads):
     (c,db,branches,users,admin,login),create,statuses,lost=leads
     lid=create().json()["lead_id"];url=f"/api/v1/leads/{lid}"
+    partner=ExternalPartner(partner_name="Fictional calling partner",partner_type="CALLING")
+    db.add(partner);db.flush()
+    assignment=LeadExternalAssignment(lead_id=uuid.UUID(lid),partner_id=partner.partner_id,assigned_by=users["ADMIN"].user_id,status="ACTIVE")
+    db.add(assignment)
+    lead=db.get(Lead,uuid.UUID(lid));lead.next_followup_at=datetime.now(timezone.utc)+timedelta(days=1)
+    db.commit()
     row=c.get(url,headers=admin).json()
     assert c.post(url+"/dnc",headers=admin,json={"dnc":True,"reason":"No promotional contact requested","row_version":row["row_version"]}).status_code==200
     row=c.get(url,headers=admin).json();assert row["dnc"] is True and len(row["dnc_history"])==1
+    assert row["next_followup_at"] is None
+    db.refresh(assignment);assert assignment.status=="REVOKED" and assignment.row_version==2
     for kind in ("OUTBOUND_CALL","OUTBOUND_WHATSAPP","FOLLOW_UP"):
         assert c.post(url+"/interactions",headers=admin,json={"interaction_type":kind,"summary":"Attempt outbound","row_version":row["row_version"]}).status_code==409
     for kind in ("INBOUND_CALL","NOTE"):

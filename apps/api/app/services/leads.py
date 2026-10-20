@@ -87,7 +87,7 @@ def change_dnc(db: Session, *, lead: Lead, new_value: bool, actor_user_id: uuid.
         return lead
     if new_value:
         lead.next_followup_at = None
-        db.execute(update(LeadExternalAssignment).where(LeadExternalAssignment.lead_id == lead.lead_id, LeadExternalAssignment.status == "ACTIVE").values(status="REVOKED"))
+        db.execute(update(LeadExternalAssignment).where(LeadExternalAssignment.lead_id == lead.lead_id, LeadExternalAssignment.status == "ACTIVE").values(status="REVOKED", row_version=LeadExternalAssignment.row_version + 1))
     lead.dnc = new_value
     lead.updated_by = actor_user_id
     lead.row_version += 1
