@@ -369,7 +369,7 @@ def convert_lead_to_patient(
     db.execute(
         update(Appointment)
         .where(Appointment.lead_id == lead.lead_id, Appointment.patient_id.is_(None))
-        .values(patient_id=patient.patient_id)
+        .values(patient_id=patient.patient_id, row_version=Appointment.row_version + 1)
     )
     db.flush()
     return patient, created_new

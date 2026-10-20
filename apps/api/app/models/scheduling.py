@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, time
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Time
+from sqlalchemy import UniqueConstraint, Index, Boolean, Date, DateTime, ForeignKey, Integer, String, Time
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin
@@ -16,7 +16,9 @@ class AppointmentStatus(Base):
 
 class Appointment(Base, TimestampMixin):
     __tablename__ = "appointments"
-    __table_args__ = {"schema": "scheduling"}
+    __table_args__ = (Index("uq_appointment_request", "organization_id", "created_by", "booking_request_id", unique=True), Index("ix_appointment_doctor_window", "doctor_id", "scheduled_start", "scheduled_end"), {"schema": "scheduling"})
+    booking_request_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    booking_request_hash: Mapped[str | None] = mapped_column(String(64))
     appointment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("core.organizations.organization_id"))
     branch_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("core.branches.branch_id"))
@@ -48,7 +50,7 @@ class DoctorSchedule(Base, TimestampMixin):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class ScheduleException(Base):
+class ScheduleException(Base, TimestampMixin):
     __tablename__ = "schedule_exceptions"
     __table_args__ = {"schema": "scheduling"}
     exception_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -58,3 +60,5 @@ class ScheduleException(Base):
     start_time: Mapped[time | None] = mapped_column(Time)
     end_time: Mapped[time | None] = mapped_column(Time)
     exception_type: Mapped[str] = mapped_column(String(60))
+    slot_duration_minutes: Mapped[int] = mapped_column(Integer, default=15)
+    note: Mapped[str | None] = mapped_column(String(500))
