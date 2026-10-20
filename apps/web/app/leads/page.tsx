@@ -1,102 +1,66 @@
 "use client";
-import {FormEvent,useEffect,useMemo,useState} from "react";
+import {FormEvent,useEffect,useRef,useState} from "react";
 import {apiFetch} from "../../lib/api";
-import type {Appointment,Bootstrap,Lead} from "../../lib/types";
+import LeadBooking from "../../components/LeadBooking";
+import type {Bootstrap,Lead} from "../../lib/types";
 
-function dtLocal(v?:string|null){if(!v)return "—";return new Date(v).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}
-
+type Owner={id:string;name:string;branch_ids:string[]|null};
+type Draft={lead_name:string;mobile:string;age:string;gender:string;concern_text:string;lead_source_id:string;preferred_branch_id:string;lead_owner_user_id:string;lead_status_id:string;lost_reason_id:string};
+const blank:Draft={lead_name:"",mobile:"",age:"",gender:"",concern_text:"",lead_source_id:"",preferred_branch_id:"",lead_owner_user_id:"",lead_status_id:"",lost_reason_id:""};
+const displayDate=(v?:string|null)=>v?new Date(v).toLocaleString("en-IN",{timeZone:"Asia/Kolkata",dateStyle:"medium",timeStyle:"short"}):"—";
+function indiaISO(value:string){return value?new Date(`${value}:00+05:30`).toISOString():null}
 export default function LeadsPage(){
-  const [meta,setMeta]=useState<Bootstrap|null>(null);
-  const [leads,setLeads]=useState<Lead[]>([]);
-  const [selected,setSelected]=useState<Lead|null>(null);
-  const [q,setQ]=useState("");
-  const [error,setError]=useState("");
-  const [showNew,setShowNew]=useState(false);
-  const [showBooking,setShowBooking]=useState(false);
-  const [form,setForm]=useState({lead_name:"",mobile:"",concern_text:"",lead_source_id:"",preferred_branch_id:"",nextfollowup_at:""});
-  const [booking,setBooking]=useState({branch_id:"",doctor_id:"",date:"",slot_start:""});
-  const [slots,setSlots]=useState<{start:string;end:string}[]>([]);
-  const [previous,setPrevious]=useState<Lead[]>([]);
-
-  const statusNew=useMemo(()=>meta?.lead_statuses.find(x=>x.code==="NEW"),[meta]);
-  const scheduledStatus=useMemo(()=>meta?.appointment_statuses.find(x=>x.code==="SCHEDULED"),[meta]);
-
-  async function loadLeads(search=q){
-    const path=search?`/leads?q=${encodeURIComponent(search)}`:"/leads";
-    setLeads(await apiFetch<Lead[]>(path));
-  }
-  useEffect(()=>{apiFetch<Bootstrap>("/meta/bootstrap").then(x=>{setMeta(x);setForm(f=>({...f,lead_source_id:x.lead_sources[0]?.id||"",preferred_branch_id:x.branches[0]?.id||""}));setBooking(b=>({...b,branch_id:x.branches[0]?.id||"",doctor_id:x.doctors[0]?.id||""}))}).catch(e=>setError(e.message));loadLeads().catch(e=>setError(e.message))},[]);
-
-  async function findPrevious(){
-    if(!form.mobile&&!form.lead_name){setPrevious([]);return}
-    const params=new URLSearchParams();if(form.mobile)params.set("mobile",form.mobile);if(form.lead_name)params.set("name",form.lead_name);
-    setPrevious(await apiFetch<Lead[]>(`/leads/search?${params.toString()}`));
-  }
-
-  async function createLead(e:FormEvent){
-    e.preventDefault();if(!meta||!statusNew)return;setError("");
-    try{
-      await apiFetch("/leads",{method:"POST",body:JSON.stringify({organization_id:meta.organization_id,lead_name:form.lead_name,mobile:form.mobile,concern_text:form.concern_text||null,lead_source_id:form.lead_source_id,preferred_branch_id:form.preferred_branch_id||null,lead_status_id:statusNew.id,next_followup_at:form.nextfollowup_at?new Date(form.nextfollowup_at).toISOString():null})});
-      setShowNew(false);setPrevious([]);setForm(f=>({...f,lead_name:"",mobile:"",concern_text:"",nextfollowup_at:""}));await loadLeads("");
-    }catch(e){setError(e instanceof Error?e.message:"Unable to create Lead")}
-  }
-
-  async function toggleDnc(lead:Lead){
-    const reason=lead.dnc?"DNC removed by reception":"Patient requested no outbound calls";
-    await apiFetch(`/leads/${lead.lead_id}/dnc`,{method:"POST",body:JSON.stringify({dnc:!lead.dnc,reason})});await loadLeads();if(selected?.lead_id===lead.lead_id)setSelected({...lead,dnc:!lead.dnc});
-  }
-  async function reopen(lead:Lead){await apiFetch(`/leads/${lead.lead_id}/reopen`,{method:"POST"});await loadLeads();setSelected(null)}
-  async function addFollowup(lead:Lead){
-    const when=prompt("Next follow-up (example 2026-09-05T11:00)");if(!when)return;
-    await apiFetch(`/leads/${lead.lead_id}/interactions`,{method:"POST",body:JSON.stringify({interaction_type:"FOLLOW_UP",channel:"PHONE",summary:"Follow-up scheduled",outcome:"CALL_BACK",next_followup_at:new Date(when).toISOString()})});await loadLeads();
-  }
-  async function loadSlots(next=booking){
-    if(!next.branch_id||!next.doctor_id||!next.date){setSlots([]);return}
-    const x=await apiFetch<{slots:{start:string;end:string}[]}>(`/appointments/availability?branch_id=${next.branch_id}&doctor_id=${next.doctor_id}&on_date=${next.date}`);
-    setSlots(x.slots);
-    setBooking(b=>({...b,slot_start:x.slots.some(s=>s.start===b.slot_start)?b.slot_start:(x.slots[0]?.start||"")}));
-  }
-  async function book(e:FormEvent){
-    e.preventDefault();if(!meta||!selected||!scheduledStatus||!booking.slot_start)return;
-    const slot=slots.find(x=>x.start===booking.slot_start);if(!slot)return;
-    await apiFetch<Appointment>("/appointments",{method:"POST",body:JSON.stringify({organization_id:meta.organization_id,branch_id:booking.branch_id,doctor_id:booking.doctor_id||null,lead_id:selected.lead_id,patient_id:null,scheduled_start:slot.start,scheduled_end:slot.end,appointment_status_id:scheduledStatus.id,service_id:null,booked_via:"RECEPTION"})});
-    setShowBooking(false);await loadLeads();
-  }
-
+  const [meta,setMeta]=useState<Bootstrap|null>(null),[owners,setOwners]=useState<Owner[]>([]);
+  const [leads,setLeads]=useState<Lead[]>([]),[selected,setSelected]=useState<Lead|null>(null);
+  const [draft,setDraft]=useState<Draft>(blank),[editing,setEditing]=useState(false),[creating,setCreating]=useState(false);
+  const [q,setQ]=useState(""),[status,setStatus]=useState(""),[ownerFilter,setOwnerFilter]=useState(""),[due,setDue]=useState(false),[offset,setOffset]=useState(0);
+  const [previous,setPrevious]=useState<Lead[]>([]),[error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
+  const [action,setAction]=useState<"interaction"|"dnc"|null>(null),[kind,setKind]=useState("NOTE"),[summary,setSummary]=useState(""),[outcome,setOutcome]=useState(""),[followup,setFollowup]=useState(""),[reason,setReason]=useState("");
+  const [booking,setBooking]=useState(false);
+  const searchSequence=useRef(0);
+  async function load(start=offset){const params=new URLSearchParams({q,status_code:status,offset:String(start),limit:"50",followups_due:String(due)});if(!status)params.delete("status_code");if(ownerFilter)params.set("owner_id",ownerFilter);setLoading(true);try{setLeads(await apiFetch<Lead[]>(`/leads?${params}`))}finally{setLoading(false)}}
+  async function perform(task:()=>Promise<void>){setError("");setNotice("");setBusy(true);try{await task()}catch(e){setError(e instanceof Error?e.message:"Unable to save. Please try again.")}finally{setBusy(false)}}
+  useEffect(()=>{Promise.all([apiFetch<Bootstrap>("/meta/bootstrap"),apiFetch<Owner[]>("/leads/owners")]).then(([m,o])=>{setMeta(m);setOwners(o)}).catch(e=>setError(e.message))},[]);
+  useEffect(()=>{load(offset).catch(e=>setError(e.message))},[status,ownerFilter,due,offset]);
+  useEffect(()=>{const sequence=++searchSequence.current;if(!creating){setPrevious([]);return}const timer=setTimeout(()=>{if(!draft.lead_name.trim()&&!draft.mobile.trim()){setPrevious([]);return}const p=new URLSearchParams({name:draft.lead_name,mobile:draft.mobile});apiFetch<Lead[]>(`/leads/search?${p}`).then(rows=>{if(sequence===searchSequence.current)setPrevious(rows)}).catch(e=>{if(sequence===searchSequence.current)setError(e.message)})},350);return()=>clearTimeout(timer)},[creating,draft.lead_name,draft.mobile]);
+  async function open(lead:Lead){await perform(async()=>{setSelected(await apiFetch<Lead>(`/leads/${lead.lead_id}`))})}
+  function startNew(){setSelected(null);setDraft({...blank,preferred_branch_id:meta?.branches[0]?.id||"",lead_status_id:meta?.lead_statuses.find(s=>s.code==="NEW")?.id||""});setCreating(true);setError("")}
+  function startEdit(){if(!selected)return;setDraft({lead_name:selected.lead_name,mobile:selected.mobile||"",age:selected.age?.toString()||"",gender:selected.gender||"",concern_text:selected.concern_text||"",lead_source_id:selected.lead_source_id,preferred_branch_id:selected.preferred_branch_id||"",lead_owner_user_id:selected.lead_owner_user_id||"",lead_status_id:selected.lead_status_id,lost_reason_id:selected.lost_reason_id||""});setEditing(true)}
+  async function refreshSelected(id:string){setSelected(await apiFetch<Lead>(`/leads/${id}`));await load()}
+  async function save(e:FormEvent){e.preventDefault();await perform(async()=>{if(!meta)return;const fields={...draft,age:draft.age===""?null:Number(draft.age),gender:draft.gender||null,concern_text:draft.concern_text||null,preferred_branch_id:draft.preferred_branch_id||null,lead_owner_user_id:draft.lead_owner_user_id||null};if(creating){const {lost_reason_id,...payload}=fields;await apiFetch("/leads",{method:"POST",body:JSON.stringify({...payload,organization_id:meta.organization_id})});setCreating(false);setOffset(0);await load(0);setNotice("Lead created. No Patient or UHID was created.")}else if(selected){await apiFetch(`/leads/${selected.lead_id}`,{method:"PATCH",body:JSON.stringify({...fields,lost_reason_id:draft.lost_reason_id||null,row_version:selected.row_version})});setEditing(false);await refreshSelected(selected.lead_id);setNotice("Lead updated; previous values remain in audit history.")}})}
+  async function saveAction(e:FormEvent){e.preventDefault();if(!selected)return;await perform(async()=>{if(action==="dnc"){await apiFetch(`/leads/${selected.lead_id}/dnc`,{method:"POST",body:JSON.stringify({dnc:!selected.dnc,reason,row_version:selected.row_version})})}else{const payload:Record<string,unknown>={interaction_type:kind,summary,outcome:outcome||null,row_version:selected.row_version};if(followup)payload.next_followup_at=indiaISO(followup);await apiFetch(`/leads/${selected.lead_id}/interactions`,{method:"POST",body:JSON.stringify(payload)})}setAction(null);await refreshSelected(selected.lead_id);setNotice("Saved to Lead history.")})}
+  function startAction(type:"interaction"|"dnc"){setAction(type);setSummary("");setOutcome("");setFollowup("");setReason("");setKind("NOTE")}
+  const activeOwners=owners.filter(o=>!draft.preferred_branch_id||o.branch_ids===null||o.branch_ids.includes(draft.preferred_branch_id));
   return <>
-    <div className="header"><div><div className="eyebrow">LEAD REGISTER</div><h1 className="page-title">Leads</h1><div className="muted">Capture, follow up, reopen and book appointments without creating UHID.</div></div><button onClick={()=>setShowNew(true)}>+ New Lead</button></div>
-    {error&&<div className="alert danger-box">{error}</div>}
-    <div className="toolbar"><input placeholder="Search name or mobile" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadLeads()}/><button className="secondary" onClick={()=>loadLeads()}>Search</button><button className="ghost" onClick={()=>{setQ("");loadLeads("")}}>Clear</button></div>
-    <div className="table-wrap"><table><thead><tr><th>Lead</th><th>Concern</th><th>Source</th><th>Status</th><th>Follow-up</th><th>Actions</th></tr></thead><tbody>
-      {leads.map(l=><tr key={l.lead_id}><td><b>{l.lead_name}</b><div className="muted">{l.mobile||"No mobile"}{l.dnc&&<span className="badge danger ml">DNC</span>}</div></td><td>{l.concern_text||"—"}</td><td>{l.source||"—"}</td><td><span className="badge">{l.status||"—"}</span></td><td>{dtLocal(l.next_followup_at)}</td><td><div className="row"><button className="small secondary" onClick={()=>setSelected(l)}>Open</button><button className="small secondary" disabled={l.dnc} onClick={()=>addFollowup(l)}>Follow-up</button></div></td></tr>)}
-      {!leads.length&&<tr><td colSpan={6} className="empty">No Leads found.</td></tr>}
-    </tbody></table></div>
-
-    {showNew&&<div className="modal-backdrop"><div className="modal"><div className="modal-head"><h2>New Lead</h2><button className="icon" onClick={()=>setShowNew(false)}>×</button></div><form onSubmit={createLead} className="form-grid">
-      <label>Name<input required value={form.lead_name} onChange={e=>setForm({...form,lead_name:e.target.value})} onBlur={findPrevious}/></label>
-      <label>Mobile<input required value={form.mobile} onChange={e=>setForm({...form,mobile:e.target.value})} onBlur={findPrevious}/></label>
-      <label className="span2">Concern<input value={form.concern_text} onChange={e=>setForm({...form,concern_text:e.target.value})}/></label>
-      <label>Source<select required value={form.lead_source_id} onChange={e=>setForm({...form,lead_source_id:e.target.value})}>{meta?.lead_sources.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-      <label>Preferred branch<select value={form.preferred_branch_id} onChange={e=>setForm({...form,preferred_branch_id:e.target.value})}>{meta?.branches.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-      <label className="span2">Next follow-up<input type="datetime-local" value={form.nextfollowup_at} onChange={e=>setForm({...form,nextfollowup_at:e.target.value})}/></label>
-      {!!previous.length&&<div className="span2 previous-box"><b>Previous inquiries found</b><p className="muted">Do not block a genuine new inquiry. Reopen the old Lead only when appropriate.</p>{previous.slice(0,5).map(x=><div className="previous-row" key={x.lead_id}><span>{x.lead_name} · {x.concern_text||"No concern"}</span><span className="badge">{x.status||"Previous"}</span></div>)}</div>}
-      <div className="span2 row end"><button type="button" className="secondary" onClick={()=>setShowNew(false)}>Cancel</button><button>Create Lead</button></div>
+    {booking&&selected&&meta&&<LeadBooking lead={selected} meta={meta} onClose={()=>setBooking(false)} onSaved={()=>refreshSelected(selected.lead_id)}/>
+    <div className="header"><div><div className="eyebrow">MODULE 2 · LEAD REGISTER</div><h1 className="page-title">Leads</h1><p className="muted">Record inquiries and follow-ups. Times are shown in India Standard Time.</p></div><button disabled={!meta||busy} onClick={startNew}>+ New Lead</button></div>
+    {error&&<div role="alert" className="alert danger-box">{error}{selected&&<button className="small secondary" onClick={()=>open(selected)}>Reload Lead</button>}</div>}
+    {notice&&<div role="status" className="alert">{notice}</div>}
+    <form className="toolbar" onSubmit={e=>{e.preventDefault();setOffset(0);perform(()=>load(0))}}><input aria-label="Search name or mobile" placeholder="Search name or mobile" value={q} onChange={e=>setQ(e.target.value)}/><button disabled={busy}>Search</button><label>Status filter<select value={status} onChange={e=>{setStatus(e.target.value);setOffset(0)}}><option value="">All statuses</option>{meta?.lead_statuses.map(x=><option key={x.id} value={x.code}>{x.name}</option>)}</select></label><label>Owner filter<select value={ownerFilter} onChange={e=>{setOwnerFilter(e.target.value);setOffset(0)}}><option value="">All staff</option>{owners.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label><input type="checkbox" checked={due} onChange={e=>{setDue(e.target.checked);setOffset(0)}}/>Follow-ups due</label></form>
+    <div className="table-wrap"><table><thead><tr><th>Lead</th><th>Concern / Source</th><th>Owner / Branch</th><th>Status</th><th>Follow-up (IST)</th><th>Actions</th></tr></thead><tbody>{leads.map(l=><tr key={l.lead_id}><td><b>{l.lead_name}</b><div>{l.mobile}{l.dnc&&<span className="badge danger ml">DNC</span>}</div></td><td>{l.concern_text||"—"}<div className="muted">{l.source}</div></td><td>{l.owner_name||"Unassigned"}<div className="muted">{l.preferred_branch||"Unassigned"}</div></td><td>{l.status}</td><td>{displayDate(l.next_followup_at)}</td><td><button className="small secondary" onClick={()=>open(l)}>Open</button></td></tr>)}{!leads.length&&<tr><td colSpan={6}>{loading?"Loading leads…":"No leads found."}</td></tr>}</tbody></table></div>
+    <div className="row end"><button className="secondary" disabled={offset===0||loading} onClick={()=>setOffset(Math.max(0,offset-50))}>Previous page</button><span>Page {Math.floor(offset/50)+1}</span><button className="secondary" disabled={leads.length<50||loading} onClick={()=>setOffset(offset+50)}>Next page</button></div>
+    {selected&&!creating&&!editing&&<div className="drawer-backdrop"><section className="drawer" aria-label="Lead details"><div className="modal-head"><h2>{selected.lead_name}</h2><button aria-label="Close Lead" className="icon" onClick={()=>setSelected(null)}>×</button></div><p>{selected.mobile} · {selected.status} {selected.dnc&&<b> · DO NOT CALL</b>}</p><p>{selected.concern_text||"No concern recorded"}</p><p>Source: {selected.source} · Owner: {selected.owner_name||"Unassigned"}</p><p>Branch: {selected.preferred_branch||"Unassigned"} · Follow-up: {displayDate(selected.next_followup_at)}</p>
+      {selected.dnc&&<div className="alert warning-box">DNC blocks outbound contact and follow-up scheduling. Inbound contact and internal notes can still be recorded.</div>}
+      <div className="action-stack"><button disabled={busy} onClick={startEdit}>Edit Lead / Assign staff</button><button disabled={busy} onClick={()=>startAction("interaction")}>Record interaction / Follow-up</button><button disabled={busy} className="secondary" onClick={()=>startAction("dnc")}>{selected.dnc?"Remove DNC":"Mark Do Not Call"}</button>{["LOST","NO_SHOW"].includes(selected.status_code||"")&&<button disabled={busy} onClick={()=>perform(async()=>{await apiFetch(`/leads/${selected.lead_id}/reopen`,{method:"POST",body:JSON.stringify({row_version:selected.row_version})});await refreshSelected(selected.lead_id);setNotice("Existing Lead reopened.")})}>Reopen Lead</button>}<button disabled={busy} className="secondary" onClick={()=>setBooking(true)}>Book appointment</button><a href="/appointments">Appointment register</a>{selected.status_code!=="CONVERTED"&&<a href={`/patients?lead=${selected.lead_id}`}>Verified Patient registration</a>}</div>
+      <h3>Interaction history</h3>{!selected.interactions?.length&&<p className="muted">No interactions yet.</p>}{selected.interactions?.map(x=><div className="card inset" key={x.interaction_id}><b>{x.type.replaceAll("_"," ")}</b><div className="muted">{displayDate(x.interaction_at)}</div><p>{x.summary}</p>{x.outcome&&<p>Outcome: {x.outcome}</p>}</div>)}
+      <h3>Status history</h3>{selected.status_history?.map((x,i)=><p key={i}>{displayDate(x.changed_at)} · {x.status} · {x.reason}</p>)}
+      <h3>DNC history</h3>{!selected.dnc_history?.length&&<p className="muted">No DNC changes.</p>}{selected.dnc_history?.map((x,i)=><p key={i}>{displayDate(x.changed_at)} · {x.old_dnc?"On":"Off"} → {x.new_dnc?"On":"Off"} · {x.reason}</p>)}
+    </section></div>}
+    {(creating||editing)&&<div className="modal-backdrop"><div className="modal" role="dialog" aria-label={creating?"New Lead":"Edit Lead"}><div className="modal-head"><h2>{creating?"New Lead":"Edit Lead"}</h2></div>{error&&<div role="alert" className="alert danger-box">{error}</div>}<form className="form-grid" onSubmit={save}>
+      <label>Name<input required maxLength={150} value={draft.lead_name} onChange={e=>setDraft({...draft,lead_name:e.target.value})}/></label><label>Mobile<input required type="tel" value={draft.mobile} onChange={e=>setDraft({...draft,mobile:e.target.value})}/></label>
+      <label>Age<input type="number" min={0} max={130} value={draft.age} onChange={e=>setDraft({...draft,age:e.target.value})}/></label><label>Gender<select value={draft.gender} onChange={e=>setDraft({...draft,gender:e.target.value})}><option value="">Not recorded</option>{["Female","Male","Other"].map(x=><option key={x}>{x}</option>)}</select></label>
+      <label className="span2">Concern<textarea maxLength={5000} value={draft.concern_text} onChange={e=>setDraft({...draft,concern_text:e.target.value})}/></label>
+      <label>Lead source<select required value={draft.lead_source_id} onChange={e=>setDraft({...draft,lead_source_id:e.target.value})}><option value="">Select source</option>{meta?.lead_sources.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+      <label>Preferred branch<select required value={draft.preferred_branch_id} onChange={e=>setDraft({...draft,preferred_branch_id:e.target.value,lead_owner_user_id:""})}><option value="">Select branch</option>{meta?.branches.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+      <label>Assigned staff<select value={draft.lead_owner_user_id} onChange={e=>setDraft({...draft,lead_owner_user_id:e.target.value})}><option value="">Unassigned</option>{activeOwners.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+      {editing&&<label>Status<select value={draft.lead_status_id} onChange={e=>setDraft({...draft,lead_status_id:e.target.value})}>{meta?.lead_statuses.filter(x=>["NEW","FOLLOW_UP_REQUIRED","LOST","SPAM_FAKE"].includes(x.code)||x.id===selected?.lead_status_id).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>}
+      {meta?.lead_statuses.find(x=>x.id===draft.lead_status_id)?.code==="LOST"&&<label>Lost reason<select required value={draft.lost_reason_id} onChange={e=>setDraft({...draft,lost_reason_id:e.target.value})}><option value="">Select reason</option>{meta.lost_reasons.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>}
+      {creating&&previous.length>0&&<div className="span2 previous-box"><b>Previous inquiries found</b><p>A shared mobile does not identify a Patient. Open the existing inquiry for the same concern, or save a separate Lead for a different inquiry.</p>{previous.map(x=><div className="previous-row" key={x.lead_id}><span>{x.lead_name} · {x.mobile} · {x.concern_text||"No concern"} · {x.status}{x.dnc?" · DNC":""}</span><button type="button" className="small secondary" onClick={()=>{setCreating(false);open(x)}}>Open existing inquiry</button></div>)}</div>}
+      <div className="span2 row end"><button type="button" className="secondary" disabled={busy} onClick={()=>{setCreating(false);setEditing(false)}}>Cancel</button><button disabled={busy}>{busy?"Saving…":creating?"Create Lead":"Save Lead"}</button></div>
     </form></div></div>}
-
-    {selected&&<div className="drawer-backdrop" onClick={()=>setSelected(null)}><div className="drawer" onClick={e=>e.stopPropagation()}><div className="modal-head"><div><div className="eyebrow">LEAD</div><h2>{selected.lead_name}</h2></div><button className="icon" onClick={()=>setSelected(null)}>×</button></div>
-      <div className="detail-grid"><div><span>Mobile</span><b>{selected.mobile||"—"}</b></div><div><span>Status</span><b>{selected.status}</b></div><div><span>Source</span><b>{selected.source}</b></div><div><span>Branch</span><b>{selected.preferred_branch||"—"}</b></div></div>
-      <div className="card inset"><div className="muted">Concern</div><p>{selected.concern_text||"No concern recorded"}</p></div>
-      <div className="action-stack">{selected.status_code!=="CONVERTED"&&<button onClick={()=>window.location.href=`/patients?lead=${selected.lead_id}`}>Convert / Check in Patient</button>}<button onClick={()=>{const next={...booking,date:booking.date||new Date().toISOString().slice(0,10)};setBooking(next);setShowBooking(true);setTimeout(()=>loadSlots(next),0)}}>Book appointment</button><button className="secondary" disabled={selected.dnc} onClick={()=>addFollowup(selected)}>Schedule follow-up</button>{["LOST","NO_SHOW"].includes(selected.status_code||"")&&<button className="secondary" onClick={()=>reopen(selected)}>Reopen Lead</button>}<button className={selected.dnc?"secondary":"danger-button"} onClick={()=>toggleDnc(selected)}>{selected.dnc?"Remove DNC":"Mark Do Not Call"}</button></div>
-      {selected.dnc&&<div className="alert warning-box">Outbound calls, marketing exports, AI outbound calls and third-party calling assignments are blocked by the CRM.</div>}
-    </div></div>}
-
-    {showBooking&&selected&&<div className="modal-backdrop"><div className="modal narrow"><div className="modal-head"><h2>Book appointment</h2><button className="icon" onClick={()=>setShowBooking(false)}>×</button></div><form onSubmit={book} className="form-stack">
-      <div className="patient-strip"><b>{selected.lead_name}</b><span>{selected.mobile}</span><span className="badge">Lead — no UHID</span></div>
-      <label>Branch<select value={booking.branch_id} onChange={e=>{const next={...booking,branch_id:e.target.value,slot_start:""};setBooking(next);loadSlots(next)}}>{meta?.branches.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-      <label>Doctor<select value={booking.doctor_id} onChange={e=>{const next={...booking,doctor_id:e.target.value,slot_start:""};setBooking(next);loadSlots(next)}}>{meta?.doctors.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-      <label>Date<input required type="date" value={booking.date} onChange={e=>{const next={...booking,date:e.target.value,slot_start:""};setBooking(next);loadSlots(next)}}/></label>
-      <label>Available slot<select required value={booking.slot_start} onChange={e=>setBooking({...booking,slot_start:e.target.value})}><option value="">Select a slot</option>{slots.map(x=><option key={x.start} value={x.start}>{new Date(x.start).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</option>)}</select>{booking.date&&!slots.length&&<span className="muted">No configured slots available.</span>}</label>
-      <div className="row end"><button type="button" className="secondary" onClick={()=>setShowBooking(false)}>Cancel</button><button>Confirm appointment</button></div>
+    {action&&selected&&<div className="modal-backdrop"><div className="modal narrow" role="dialog" aria-label={action==="dnc"?"DNC change":"Record interaction"}><h2>{action==="dnc"?(selected.dnc?"Remove DNC":"Mark Do Not Call"):"Record interaction"}</h2>{error&&<div role="alert" className="alert danger-box">{error}</div>}<form className="form-stack" onSubmit={saveAction}>
+      {action==="dnc"?<label>Reason for DNC change<textarea required maxLength={500} value={reason} onChange={e=>setReason(e.target.value)}/></label>:<><label>Interaction type<select value={kind} onChange={e=>{setKind(e.target.value);setFollowup("")}}>{["NOTE","INBOUND_CALL","INBOUND_WHATSAPP",...(!selected.dnc?["OUTBOUND_CALL","OUTBOUND_WHATSAPP","FOLLOW_UP"]:[])].map(x=><option key={x} value={x}>{x.replaceAll("_"," ")}</option>)}</select></label><label>Summary<textarea required maxLength={5000} value={summary} onChange={e=>setSummary(e.target.value)}/></label><label>Outcome<input maxLength={80} value={outcome} onChange={e=>setOutcome(e.target.value)}/></label>{!selected.dnc&&<label>Next follow-up (IST)<input type="datetime-local" required={kind==="FOLLOW_UP"} value={followup} onChange={e=>setFollowup(e.target.value)}/></label>}</>}
+      <div className="row end"><button type="button" className="secondary" disabled={busy} onClick={()=>setAction(null)}>Cancel</button><button disabled={busy}>{busy?"Saving…":"Save to history"}</button></div>
     </form></div></div>}
   </>
 }

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.core.db import get_db
+from app.core.access import allowed_branch_ids
 from app.core.security import current_user
 from app.models.clinical import ChiefComplaint, VisitStatus, VisitType
 from app.models.core import Branch, Doctor, Service, User
@@ -16,6 +17,9 @@ router = APIRouter(prefix="/meta", tags=["meta"])
 @router.get("/bootstrap", response_model=BootstrapOut)
 def bootstrap(db: Session = Depends(get_db), user: User = Depends(current_user)):
     branches = list(db.scalars(select(Branch).where(Branch.organization_id == user.organization_id, Branch.active.is_(True)).order_by(Branch.branch_name)).all())
+    allowed = allowed_branch_ids(db, user)
+    if allowed is not None:
+        branches = [branch for branch in branches if branch.branch_id in allowed]
     doctors = list(db.scalars(select(Doctor).where(Doctor.organization_id == user.organization_id, Doctor.active.is_(True)).order_by(Doctor.doctor_name)).all())
     sources = list(db.scalars(select(LeadSource).where(LeadSource.active.is_(True)).order_by(LeadSource.name)).all())
     statuses = list(db.scalars(select(LeadStatus).order_by(LeadStatus.name)).all())

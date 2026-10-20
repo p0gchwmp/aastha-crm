@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 from app.models.crm import (
     Lead,
@@ -9,6 +9,7 @@ from app.models.crm import (
     LeadExternalAssignment,
     LeadInteraction,
     LeadStatus,
+    LeadSource,
     LeadStatusHistory,
 )
 from app.services.dnc import assert_outbound_allowed
@@ -16,6 +17,13 @@ from app.services.utils import normalize_mobile
 
 
 def create_lead(db: Session, *, payload, actor_user_id: uuid.UUID | None) -> Lead:
+    source = db.get(LeadSource, payload.lead_source_id)
+    status = db.get(LeadStatus, payload.lead_status_id)
+    from fastapi import HTTPException
+    if not source or not source.active:
+        raise HTTPException(422, "Select an active lead source")
+    if not status or status.code != "NEW":
+        raise HTTPException(422, "New leads must start with New status")
     lead = Lead(
         organization_id=payload.organization_id,
         lead_name=payload.lead_name.strip(),
@@ -56,15 +64,20 @@ def create_lead(db: Session, *, payload, actor_user_id: uuid.UUID | None) -> Lea
     return lead
 
 
-def search_previous_inquiries(db: Session, *, name: str | None, mobile: str | None) -> list[Lead]:
+def search_previous_inquiries(db: Session, *, name: str | None, mobile: str | None, organization_id=None, branch_ids=None) -> list[Lead]:
     stmt = select(Lead).distinct().outerjoin(LeadContact, LeadContact.lead_id == Lead.lead_id)
+    if organization_id is not None:
+        stmt = stmt.where(Lead.organization_id == organization_id)
+    if branch_ids is not None:
+        stmt = stmt.where(or_(Lead.preferred_branch_id.in_(branch_ids), Lead.preferred_branch_id.is_(None)))
     predicates = []
-    if name:
+    if name and name.strip():
         predicates.append(Lead.lead_name.ilike(f"%{name.strip()}%"))
-    if mobile:
+    if mobile and normalize_mobile(mobile):
         predicates.append(LeadContact.normalized_value == normalize_mobile(mobile))
-    if predicates:
-        stmt = stmt.where(or_(*predicates))
+    if not predicates:
+        return []
+    stmt = stmt.where(or_(*predicates))
     return list(db.scalars(stmt.order_by(Lead.updated_at.desc()).limit(30)).all())
 
 
@@ -72,6 +85,9 @@ def change_dnc(db: Session, *, lead: Lead, new_value: bool, actor_user_id: uuid.
     old = lead.dnc
     if old == new_value:
         return lead
+    if new_value:
+        lead.next_followup_at = None
+        db.execute(update(LeadExternalAssignment).where(LeadExternalAssignment.lead_id == lead.lead_id, LeadExternalAssignment.status == "ACTIVE").values(status="REVOKED"))
     lead.dnc = new_value
     lead.updated_by = actor_user_id
     lead.row_version += 1
@@ -108,6 +124,11 @@ def reopen_lead(db: Session, *, lead: Lead, actor_user_id: uuid.UUID | None, fol
 
 
 def add_interaction(db: Session, *, lead: Lead, payload, actor_user_id: uuid.UUID | None) -> LeadInteraction:
+    if payload.interaction_type not in {"INBOUND_CALL", "INBOUND_WHATSAPP", "OUTBOUND_CALL", "OUTBOUND_WHATSAPP", "NOTE", "FOLLOW_UP"}:
+        from fastapi import HTTPException
+        raise HTTPException(422, "Choose an inbound, outbound, note or follow-up interaction")
+    if payload.interaction_type.startswith("OUTBOUND") or payload.interaction_type == "FOLLOW_UP" or payload.next_followup_at is not None:
+        assert_outbound_allowed(lead)
     now = datetime.now(timezone.utc)
     item = LeadInteraction(
         lead_id=lead.lead_id,
@@ -121,7 +142,8 @@ def add_interaction(db: Session, *, lead: Lead, payload, actor_user_id: uuid.UUI
     )
     db.add(item)
     lead.last_interaction_at = now
-    lead.next_followup_at = payload.next_followup_at
+    if "next_followup_at" in payload.model_fields_set:
+        lead.next_followup_at = payload.next_followup_at
     lead.updated_by = actor_user_id
     lead.row_version += 1
     if payload.next_followup_at is not None:
