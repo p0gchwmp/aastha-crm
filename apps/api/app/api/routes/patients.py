@@ -52,7 +52,7 @@ def create(
 ):
     if payload.organization_id != user.organization_id:
         raise HTTPException(403, "Cannot register Patient for another organization")
-    ensure_branch_access(db, user, payload.registration_branch_id)
+    branch = ensure_branch_access(db, user, payload.registration_branch_id)
     candidates = search_patient_matches(
         db,
         organization_id=user.organization_id,

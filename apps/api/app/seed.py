@@ -29,7 +29,7 @@ from app.core.config import get_settings
 PERMISSIONS = [
     "LEAD_CREATE", "LEAD_VIEW", "LEAD_EDIT", "LEAD_EXTERNAL_ASSIGN", "LEAD_EXPORT",
     "PATIENT_CREATE", "PATIENT_VIEW", "PATIENT_EDIT", "PATIENT_IMPORT",
-    "APPOINTMENT_CREATE", "APPOINTMENT_EDIT",
+    "APPOINTMENT_CREATE", "APPOINTMENT_EDIT", "APPOINTMENT_SCHEDULE_MANAGE",
     "VISIT_CREATE", "VISIT_EDIT", "PROCEDURE_VIEW", "PROCEDURE_ORDER_CREATE", "PROCEDURE_EXECUTE",
     "CONSULTATION_FINANCE_VIEW", "CONSULTATION_BILL_CREATE", "CONSULTATION_PAYMENT_CREATE", "CONSULTATION_COMPLIMENTARY", "FINANCE_CORRECT",
     "MASTER_APPROVE", "REPORT_EXPORT", "AUDIT_VIEW", "STAFF_MANAGE",
@@ -168,15 +168,7 @@ def main():
             get_or_create(db, LostReason, code=code, defaults={"name": code.replace("_", " ").title()})
         for code in ["SCHEDULED", "CONFIRMED", "WAITLISTED", "CHECKED_IN", "RESCHEDULED", "CANCELLED", "NO_SHOW", "COMPLETED"]:
             get_or_create(db, AppointmentStatus, code=code, defaults={"name": code.replace("_", " ").title()})
-        # Default clinic availability; dates/times remain configurable in scheduling masters.
-        for branch in (pal, amp):
-            for weekday in range(6):
-                get_or_create(
-                    db, DoctorSchedule,
-                    doctor_id=doctor.doctor_id, branch_id=branch.branch_id, day_of_week=weekday,
-                    effective_from=date(2026, 1, 1),
-                    defaults={"start_time": __import__("datetime").time(11, 0), "end_time": __import__("datetime").time(16, 0), "slot_duration_minutes": 15, "active": True},
-                )
+        # Doctor availability is configured by Admin; never recreate or invent clinic timings.
         for code in ["CONSULTATION", "PROCEDURE", "REPORT_CHECK", "FOLLOW_UP", "OTHER"]:
             get_or_create(db, VisitType, code=code, defaults={"name": code.replace("_", " ").title()})
         for complaint in ["Acne", "Acne Scars", "Hair Fall", "Pigmentation", "Melasma", "Fungal Infection", "Eczema", "Psoriasis", "Vitiligo", "Warts"]:

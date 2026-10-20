@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app.core.config import get_settings
 from app.core.db import database_ready
-from app.api.routes import staff, admin, appointments, auth, dashboard, finance, imports, integrations, leads, masters, meta, patients, visits, procedures, procedure_integrations
+from app.api.routes import schedules, staff, admin, appointments, auth, dashboard, finance, imports, integrations, leads, masters, meta, patients, visits, procedures, procedure_integrations
 
 settings = get_settings()
 app = FastAPI(
@@ -41,6 +41,7 @@ app.include_router(meta.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(leads.router, prefix="/api/v1")
 app.include_router(patients.router, prefix="/api/v1")
+app.include_router(schedules.router, prefix="/api/v1")
 app.include_router(appointments.router, prefix="/api/v1")
 app.include_router(visits.router, prefix="/api/v1")
 app.include_router(finance.router, prefix="/api/v1")
