@@ -41,11 +41,11 @@ def status(db, code):
     if not item: raise HTTPException(503,f"Appointment status {code} is not configured")
     return item
 
-def lead_for(db,actor,lead_id):
+def lead_for(db,actor,lead_id,*,require_branch=True):
     if not lead_id: return None
     lead=db.scalar(select(Lead).where(Lead.lead_id==lead_id,Lead.organization_id==actor.organization_id).with_for_update().execution_options(populate_existing=True))
     if not lead: raise HTTPException(404,"Lead not found")
-    if lead.preferred_branch_id: ensure_branch_access(db,actor,lead.preferred_branch_id)
+    if require_branch and lead.preferred_branch_id: ensure_branch_access(db,actor,lead.preferred_branch_id)
     return lead
 
 def require_open_lead(db,lead,allow_converted=False):
@@ -147,7 +147,9 @@ def locked_appointment(db,actor,appointment_id,new_doctor=None):
     old_doctor=candidate.doctor_id;old_lead=candidate.lead_id
     ensure_branch_access(db,actor,candidate.branch_id)
     lock_doctors(db,actor,[old_doctor,new_doctor])
-    lead=lead_for(db,actor,old_lead)
+    # The appointment branch authorizes attendance; its source Lead may originate elsewhere.
+    # This internal history update does not grant direct access to that Lead register.
+    lead=lead_for(db,actor,old_lead,require_branch=False)
     item=db.scalar(select(Appointment).where(Appointment.appointment_id==appointment_id).with_for_update().execution_options(populate_existing=True))
     if item.doctor_id!=old_doctor or item.lead_id!=old_lead: raise HTTPException(409,"Appointment changed. Reload before saving")
     ensure_branch_access(db,actor,item.branch_id)

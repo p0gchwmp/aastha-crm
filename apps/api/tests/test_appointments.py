@@ -169,15 +169,16 @@ def test_registered_patient_and_inbound_dnc_booking_preserve_identity(scheduling
     p=payload();p.update(lead_id=None,patient_id=str(patient.patient_id))
     r=c.post('/api/v1/appointments',headers=login(users['RECEPTIONIST'].username),json=p);assert r.status_code==200,r.text
     assert r.json()['patient_id']==str(patient.patient_id) and r.json()['uhid']==patient.uhid
-    lead=create().json()
+    lead=create(branch=1).json()
     assert c.post('/api/v1/leads/'+lead['lead_id']+'/dnc',headers=admin,json={'dnc':True,'row_version':lead['row_version'],'reason':'Fictional no outbound consent'}).status_code==200
     r=c.post('/api/v1/appointments',headers=admin,json=payload(lead_id=lead['lead_id'],start='11:15'));assert r.status_code==200,r.text
     row=r.json();assert row['dnc'] is True
     # Simulate verified registration attaching the existing identity to the appointment.
     source=db.get(Lead,uuid.UUID(lead['lead_id']));source.lead_status_id=db.scalar(select(LeadStatus.lead_status_id).where(LeadStatus.code=='CONVERTED'));source.row_version+=1
     item=db.get(Appointment,uuid.UUID(row['appointment_id']));item.patient_id=patient.patient_id;item.row_version+=1;db.commit()
-    r=c.patch('/api/v1/appointments/'+row['appointment_id']+'/reschedule',headers=admin,json={'branch_id':str(branches[0].branch_id),'doctor_id':str(doc.doctor_id),'scheduled_start':f'{DAY}T11:30:00+05:30','scheduled_end':f'{DAY}T11:45:00+05:30','row_version':item.row_version,'reason':'Fictional registered Patient reschedule'});assert r.status_code==200,r.text
+    r=c.patch('/api/v1/appointments/'+row['appointment_id']+'/reschedule',headers=login(users['RECEPTIONIST'].username),json={'branch_id':str(branches[0].branch_id),'doctor_id':str(doc.doctor_id),'scheduled_start':f'{DAY}T11:30:00+05:30','scheduled_end':f'{DAY}T11:45:00+05:30','row_version':item.row_version,'reason':'Fictional registered Patient reschedule'});assert r.status_code==200,r.text
     assert r.json()['lead_id']==lead['lead_id'] and r.json()['patient_id']==str(patient.patient_id)
+    assert c.get('/api/v1/leads/'+lead['lead_id'],headers=login(users['RECEPTIONIST'].username)).status_code==403
     source=c.get('/api/v1/leads/'+lead['lead_id'],headers=admin).json()
     assert source['status_code']=='CONVERTED' and source['dnc'] is True
     assert db.scalar(select(func.count()).select_from(Patient))==before
