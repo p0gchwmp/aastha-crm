@@ -63,18 +63,20 @@ jobs:
           version=connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one();
           tables=connection.execute(text(\"SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')\")).scalar_one();
           connection.close();
-          assert version == '0007_appointments', version;
+          assert version == '0008_patient_registration', version;
           assert tables >= 63, tables"
 
       - name: Test reception staff lifecycle on PostgreSQL
         env:
           STAFF_TEST_DATABASE_URL: postgresql+psycopg://aastha:ci-only-password@localhost:5432/aastha_ci
-        run: pytest -q tests/test_staff_access.py tests/test_lead_register.py tests/test_appointments.py
+        run: pytest -q tests/test_staff_access.py tests/test_lead_register.py tests/test_appointments.py tests/test_patient_registration.py
       - name: Verify upgrade of a populated pre-staff database
         run: |
           python -c "import os; from sqlalchemy import create_engine,text; c=create_engine(os.environ['DATABASE_URL']).connect(); assert c.execute(text('SELECT count(*) FROM core.users')).scalar_one() > 0"
           alembic downgrade 0005_integration_clients
+          python ../../tools/verify_patient_upgrade.py prepare
           alembic upgrade head
+          python ../../tools/verify_patient_upgrade.py verify
           STAFF_TEST_DATABASE_URL="$DATABASE_URL" pytest -q tests/test_staff_access.py
       - name: Verify logical backup and restore of the test database
         run: |
@@ -87,10 +89,12 @@ jobs:
           source = create_engine(os.environ['DATABASE_URL'])
           restored = create_engine(os.environ['DATABASE_URL'].rsplit('/', 1)[0] + '/aastha_restore')
           with source.connect() as a, restored.connect() as b:
-              for table in ('core.users', 'core.user_roles', 'audit.audit_events', 'crm.leads', 'crm.lead_contacts', 'crm.lead_interactions', 'crm.lead_status_history', 'crm.lead_dnc_history', 'scheduling.appointments', 'scheduling.doctor_schedules', 'scheduling.schedule_exceptions'):
+              for table in ('core.users', 'core.user_roles', 'audit.audit_events', 'crm.leads', 'crm.lead_contacts', 'crm.lead_interactions', 'crm.lead_status_history', 'crm.lead_dnc_history', 'scheduling.appointments', 'scheduling.doctor_schedules', 'scheduling.schedule_exceptions', 'patient.patients', 'patient.patient_contacts', 'patient.patient_addresses', 'crm.lead_patient_links', 'core.number_series'):
                   sql = text('SELECT count(*) FROM ' + table)
                   assert a.execute(sql).scalar_one() == b.execute(sql).scalar_one(), table
-              assert b.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0007_appointments'
+                  rows = text('SELECT to_jsonb(t) FROM ' + table + ' AS t ORDER BY to_jsonb(t)::text')
+                  assert a.execute(rows).all() == b.execute(rows).all(), table + ' restored content'
+              assert b.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0008_patient_registration'
           print('Logical backup restored; staff, Lead records, histories, audit and migration version match')
           PYTEST
 

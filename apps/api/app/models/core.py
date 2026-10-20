@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin
@@ -113,7 +113,8 @@ class Service(Base, TimestampMixin):
 
 class NumberSeries(Base, TimestampMixin):
     __tablename__ = "number_series"
-    __table_args__ = (UniqueConstraint("organization_id", "series_code", "branch_id", "fiscal_year"), {"schema": "core"})
+    __table_args__ = (UniqueConstraint("organization_id", "series_code", "branch_id", "fiscal_year"),
+        Index("uq_active_global_uhid", "organization_id", unique=True, postgresql_where=text("series_code = 'UHID' AND active"), sqlite_where=text("series_code = 'UHID' AND active")), {"schema": "core"})
     number_series_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("core.organizations.organization_id"))
     branch_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("core.branches.branch_id"))

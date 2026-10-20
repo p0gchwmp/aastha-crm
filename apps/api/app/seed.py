@@ -229,8 +229,8 @@ def main():
                 organization_id=org.organization_id,
                 branch_id=branch.branch_id if branch else None,
                 series_code=code,
-                fiscal_year="2026-27",
-                defaults={"prefix_template": template, "current_number": 0},
+                fiscal_year=None if code == "UHID" else "2026-27",
+                defaults={"prefix_template": template, "current_number": 0, "reset_rule": "NEVER" if code == "UHID" else "FISCAL_YEAR"},
             )
 
         db.commit()
