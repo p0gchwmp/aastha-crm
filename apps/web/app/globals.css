@@ -7,3 +7,6 @@
 .print-sheet{max-width:780px;margin:30px auto;background:#fff;padding:42px;border:1px solid #ddd;min-height:900px}.print-sheet h1{margin-bottom:3px}.print-sheet h2{margin-top:24px}.print-sheet hr{border:0;border-top:1px solid #ddd;margin:22px 0}.print-actions{display:flex;justify-content:flex-end}.receipt-amount{font-size:28px;padding:24px 0}.print-sheet table{margin-top:24px}@media print{body{background:#fff}.sidebar,.print-actions{display:none!important}.shell{display:block}.shell main{padding:0}.print-sheet{border:0;margin:0;max-width:none;min-height:auto;padding:18mm;box-shadow:none}}
 
 @media(max-width:760px){.sidebar{display:flex;position:static;height:auto;padding:16px}.nav{grid-template-columns:1fr 1fr}.brand,.profile-mini{margin-bottom:12px}.logout{margin-top:12px}.nav a{font-size:12px;padding:8px}}
+
+.modal .lead-form{grid-template-columns:repeat(2,minmax(0,1fr))}.lead-form textarea,.form-stack textarea{font:inherit;min-height:80px;padding:10px;border:1px solid #d9dbde;border-radius:10px;width:100%}
+@media(max-width:600px){.modal .lead-form{grid-template-columns:1fr}}
