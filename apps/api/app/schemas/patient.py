@@ -119,7 +119,7 @@ class PatientAddressOut(BaseModel):
 
 
 class PatientDetailOut(PatientSearchOut):
-    alternate_mobile: str | None = Field(default=None,max_length=30)
+    alternate_mobile: str | None = None
     address: PatientAddressOut | None = None
     lead_ids: list[uuid.UUID] = []
 

@@ -156,3 +156,23 @@ def test_postgres_concurrent_conversion_registration_retries_and_uhids(registrat
     def unique(local,user,i):return create(PatientCreate(**requests[i]),None,local,user).uhid
     numbers=race(unique);assert len(set(numbers))==2
     db.expire_all();assert db.get(NumberSeries,series.number_series_id).current_number==4
+
+
+def test_failed_conversion_rolls_back_patient_uhid_and_history(registration,monkeypatch):
+    (c,db,branches,users,admin,login),payload,new_lead,appointment,series=registration
+    from app.services import patients as service
+    lead=new_lead().json();url='/api/v1/leads/'+lead['lead_id']
+    original=service.log_audit
+    def fail_after_identity(*args,**kwargs):
+        if kwargs['action']=='LEAD_CONVERTED': raise RuntimeError('Fictional transaction failure')
+        return original(*args,**kwargs)
+    monkeypatch.setattr(service,'log_audit',fail_after_identity)
+    with pytest.raises(RuntimeError,match='Fictional transaction failure'):
+        c.post(url+'/convert',headers=admin,json=payload(lead_row_version=lead['row_version']))
+    db.expire_all()
+    assert db.get(NumberSeries,series.number_series_id).current_number==0
+    assert db.scalar(select(func.count()).select_from(Patient).where(Patient.organization_id==users['ADMIN'].organization_id))==0
+    assert db.scalar(select(func.count()).select_from(LeadPatientLink).where(LeadPatientLink.lead_id==uuid.UUID(lead['lead_id'])))==0
+    assert c.get(url,headers=admin).json()['status_code']=='NEW'
+    monkeypatch.setattr(service,'log_audit',original)
+    assert c.post(url+'/convert',headers=admin,json=payload(lead_row_version=lead['row_version'])).status_code==200

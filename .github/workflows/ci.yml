@@ -92,6 +92,8 @@ jobs:
               for table in ('core.users', 'core.user_roles', 'audit.audit_events', 'crm.leads', 'crm.lead_contacts', 'crm.lead_interactions', 'crm.lead_status_history', 'crm.lead_dnc_history', 'scheduling.appointments', 'scheduling.doctor_schedules', 'scheduling.schedule_exceptions', 'patient.patients', 'patient.patient_contacts', 'patient.patient_addresses', 'crm.lead_patient_links', 'core.number_series'):
                   sql = text('SELECT count(*) FROM ' + table)
                   assert a.execute(sql).scalar_one() == b.execute(sql).scalar_one(), table
+                  rows = text('SELECT to_jsonb(t) FROM ' + table + ' AS t ORDER BY to_jsonb(t)::text')
+                  assert a.execute(rows).all() == b.execute(rows).all(), table + ' restored content'
               assert b.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0008_patient_registration'
           print('Logical backup restored; staff, Lead records, histories, audit and migration version match')
           PYTEST

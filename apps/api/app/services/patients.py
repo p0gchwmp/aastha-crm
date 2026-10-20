@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session
 from app.models.clinical import Visit
-from app.models.core import Branch, User, NumberSeries
+from app.models.core import Branch, User
 from app.models.crm import Lead, LeadContact, LeadPatientLink, LeadStatus, LeadStatusHistory
 from app.models.patient import District, Locality, Patient, PatientAddress, PatientContact, Region
 from app.models.scheduling import Appointment
@@ -358,7 +358,7 @@ def convert_lead_to_patient(
         raise HTTPException(409,"Lead changed. Reopen registration and verify the latest details.")
 
     if payload.existing_patient_id:
-        patient = db.scalar(select(Patient).where(Patient.patient_id==payload.existing_patient_id).with_for_update())
+        patient = db.scalar(select(Patient).where(Patient.patient_id==payload.existing_patient_id).with_for_update().execution_options(populate_existing=True))
         if not patient or patient.organization_id != lead.organization_id:
             raise HTTPException(400, "Selected existing Patient not found")
         if payload.existing_patient_row_version!=patient.row_version:
