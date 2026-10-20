@@ -22,11 +22,16 @@ test('Lead register preserves separate inquiries, followups and DNC history',asy
   let edit=page.getByRole('dialog',{name:'Edit Lead',exact:true});
   await expect(edit.getByLabel('Current Lead status')).toContainText('Current status: New');
   const statusChoice=edit.getByLabel('Change Lead status',{exact:true});
-  await expect(statusChoice.getByRole('option',{name:/^Converted/})).toBeDisabled();
-  await expect(statusChoice.getByRole('option',{name:/^Appointment Booked/})).toBeDisabled();
-  await expect(statusChoice.getByRole('option',{name:/^No Show/})).toBeDisabled();
+  await expect(statusChoice.getByRole('option',{name:/^Converted/})).toHaveAttribute('disabled','');
+  await expect(statusChoice.getByRole('option',{name:/^Appointment Booked/})).toHaveAttribute('disabled','');
+  await expect(statusChoice.getByRole('option',{name:/^No Show/})).toHaveAttribute('disabled','');
   await expect(statusChoice.getByRole('option',{name:'Do Not Call',exact:true})).toHaveCount(0);
   await expect(page.getByLabel('Status filter',{exact:true}).getByRole('option',{name:'Do Not Call',exact:true})).toHaveCount(0);
+  // Native keyboard navigation must skip the workflow-only options at the end.
+  const lastStaffStatus=await statusChoice.getByRole('option',{name:'Spam Fake',exact:true}).getAttribute('value');
+  await statusChoice.press('End');
+  await expect(statusChoice).toHaveValue(lastStaffStatus!);
+  await statusChoice.selectOption({label:'New'});
   await edit.getByLabel('Concern',{exact:true}).fill('Updated fictional concern');
   await edit.getByLabel('Assigned staff',{exact:true}).selectOption({label:'Aastha Super Admin'});
   await edit.getByRole('button',{name:'Save Lead',exact:true}).click();
