@@ -16,9 +16,11 @@ from app.services.patients import (
     get_patient_detail,
     search_patient_matches,
     search_patients,
+    registration_retry, request_hash, validate_address_hierarchy,
 )
 from app.services.utils import normalize_mobile
 from app.models.patient import PatientAddress, PatientContact
+from app.services.audit import log_audit
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -53,6 +55,11 @@ def create(
     if payload.organization_id != user.organization_id:
         raise HTTPException(403, "Cannot register Patient for another organization")
     branch = ensure_branch_access(db, user, payload.registration_branch_id)
+    existing=registration_retry(db,payload=payload,user=user)
+    if existing:
+        return existing
+    if payload.profile_status != "COMPLETE" or payload.legacy_patient_id:
+        raise HTTPException(422,"Use staged legacy import for legacy Patient records")
     candidates = search_patient_matches(
         db,
         organization_id=user.organization_id,
@@ -60,6 +67,7 @@ def create(
         mobile=payload.mobile,
         dob=payload.dob,
         gender=payload.gender,
+        age_years=payload.age_years,locality_id=payload.locality_id,address_line=payload.address_line,
     )
     if candidates and not payload.duplicate_override_confirmed:
         raise HTTPException(
@@ -77,6 +85,8 @@ def create(
         fiscal_year=fiscal_year or current_fiscal_year(),
         branch_code=branch.branch_code,
     )
+    patient.registration_request_id=payload.registration_request_id
+    patient.registration_request_hash=request_hash(payload)
     db.commit()
     db.refresh(patient)
     return patient
@@ -97,6 +107,9 @@ def match(
     mobile: str | None = None,
     dob: date | None = None,
     gender: str | None = None,
+    age_years: int | None = Query(default=None,ge=0,le=130),
+    locality_id: uuid.UUID | None = None,
+    address_line: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("PATIENT_VIEW")),
 ):
@@ -106,7 +119,7 @@ def match(
         name=name,
         mobile=mobile,
         dob=dob,
-        gender=gender,
+        gender=gender,age_years=age_years,locality_id=locality_id,address_line=address_line,
     )
 
 
@@ -150,13 +163,34 @@ def update_patient(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("PATIENT_EDIT")),
 ):
-    patient = db.get(Patient, patient_id)
+    patient = db.scalar(select(Patient).where(Patient.patient_id==patient_id).with_for_update().execution_options(populate_existing=True))
     if not patient or patient.organization_id != user.organization_id:
         raise HTTPException(404, "Patient not found")
+    if not payload.reason.strip(): raise HTTPException(422,"A correction reason is required")
     if patient.row_version != payload.row_version:
         raise HTTPException(409, "Patient was updated by another user. Review the latest record.")
 
-    for field in ["full_name", "gender", "dob", "dob_is_estimated", "profile_status"]:
+    before=get_patient_detail(db,patient=patient)
+    from pydantic import ValidationError
+    try:
+        current=PatientCreate(organization_id=patient.organization_id,registration_branch_id=patient.registration_branch_id,
+        full_name=payload.full_name if payload.full_name is not None else patient.full_name,
+        gender=payload.gender if "gender" in payload.model_fields_set else patient.gender,
+        dob=payload.dob if "dob" in payload.model_fields_set else patient.dob,
+        age_years=payload.age_years if "age_years" in payload.model_fields_set else patient.age_years,
+        mobile=payload.mobile,alternate_mobile=payload.alternate_mobile)
+    except ValidationError as exc:
+        raise HTTPException(422,"Invalid Patient details: " + "; ".join(e["msg"] for e in exc.errors()))
+    patient.full_name=current.full_name
+    patient.dob=current.dob;patient.age_years=current.age_years
+    if "age_years" in payload.model_fields_set:
+        from datetime import datetime
+        from app.services.patients import IST
+        patient.age_recorded_on=datetime.now(IST).date() if current.age_years is not None else None
+    if payload.profile_status is not None and payload.profile_status not in {"COMPLETE","LEGACY_INCOMPLETE"}:
+        raise HTTPException(422,"Invalid profile status")
+    patient.gender=current.gender
+    for field in ["dob_is_estimated", "profile_status"]:
         value = getattr(payload, field)
         if value is not None:
             setattr(patient, field, value)
@@ -179,21 +213,30 @@ def update_patient(
     upsert_contact("MOBILE", payload.mobile, True)
     upsert_contact("ALTERNATE_MOBILE", payload.alternate_mobile, False)
 
-    if any(x is not None for x in [payload.region_id, payload.district_id, payload.locality_id, payload.address_line]):
+    if any(x in payload.model_fields_set for x in ["region_id", "district_id", "locality_id", "address_line"]):
         address = db.scalar(select(PatientAddress).where(PatientAddress.patient_id == patient_id, PatientAddress.is_primary.is_(True)).limit(1))
         if not address:
             address = PatientAddress(patient_id=patient_id, is_primary=True)
             db.add(address)
-        if payload.region_id is not None:
+        validate_address_hierarchy(db,
+            region_id=payload.region_id if "region_id" in payload.model_fields_set else address.region_id,
+            district_id=payload.district_id if "district_id" in payload.model_fields_set else address.district_id,
+            locality_id=payload.locality_id if "locality_id" in payload.model_fields_set else address.locality_id)
+        if "region_id" in payload.model_fields_set:
             address.region_id = payload.region_id
-        if payload.district_id is not None:
+        if "district_id" in payload.model_fields_set:
             address.district_id = payload.district_id
-        if payload.locality_id is not None:
+        if "locality_id" in payload.model_fields_set:
             address.locality_id = payload.locality_id
-        if payload.address_line is not None:
+        if "address_line" in payload.model_fields_set:
             address.address_line = payload.address_line
 
     patient.updated_by = user.user_id
     patient.row_version += 1
+    db.flush()
+    from fastapi.encoders import jsonable_encoder
+    log_audit(db,organization_id=user.organization_id,entity_type="PATIENT",entity_id=patient.patient_id,
+        action="PATIENT_UPDATED",actor_user_id=user.user_id,before_data=jsonable_encoder(before),
+        after_data=jsonable_encoder(get_patient_detail(db,patient=patient)),reason=payload.reason.strip())
     db.commit(); db.refresh(patient)
     return get_patient_detail(db, patient=patient)

@@ -318,6 +318,7 @@ def convert_to_patient(
     user: User = Depends(require_permission("PATIENT_CREATE")),
 ):
     lead = _get_lead(db, user, lead_id)
+    ensure_branch_access(db, user, payload.registration_branch_id)
     patient, _created_new = convert_lead_to_patient(
         db,
         lead_id=lead_id,

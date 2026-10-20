@@ -11,6 +11,7 @@ class Patient(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("organization_id", "uhid"),
         Index("ix_patient_name", "full_name"),
+        Index("uq_patient_registration_request", "organization_id", "created_by", "registration_request_id", unique=True),
         {"schema": "patient"},
     )
     patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -22,6 +23,10 @@ class Patient(Base, TimestampMixin):
     dob_is_estimated: Mapped[bool] = mapped_column(Boolean, default=False)
     profile_status: Mapped[str] = mapped_column(String(40), default="COMPLETE")
     registration_branch_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("core.branches.branch_id"))
+    registration_request_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    registration_request_hash: Mapped[str | None] = mapped_column(String(64))
+    age_years: Mapped[int | None]
+    age_recorded_on: Mapped[date | None] = mapped_column(Date)
     legacy_patient_id: Mapped[str | None] = mapped_column(String(100))
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("core.users.user_id"))
     updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("core.users.user_id"))

@@ -32,6 +32,7 @@ def allocate_number(
             NumberSeries.active.is_(True),
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     series = db.scalar(stmt)
     if not series:
