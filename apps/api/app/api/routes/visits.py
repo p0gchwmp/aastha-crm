@@ -60,6 +60,7 @@ def _serialize(db: Session, visit: Visit) -> dict:
         "followup_at": visit.followup_at,
         "complaints": [{"id": x[0], "name": x[1]} for x in complaints],
         "row_version": visit.row_version,
+        "identity_confirmed_at": visit.identity_confirmed_at,
     }
 
 
@@ -68,6 +69,10 @@ def list_visits(
     on_date: date | None = Query(default=None),
     patient_id: uuid.UUID | None = None,
     branch_id: uuid.UUID | None = None,
+    doctor_id: uuid.UUID | None = None,
+    visit_type_id: uuid.UUID | None = None,
+    status_id: uuid.UUID | None = None,
+    offset: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=250),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("PATIENT_VIEW")),
@@ -78,13 +83,16 @@ def list_visits(
         stmt = stmt.where(Visit.checkin_at.between(start, end))
     if patient_id:
         stmt = stmt.where(Visit.patient_id == patient_id)
+    if doctor_id: stmt = stmt.where(Visit.doctor_id == doctor_id)
+    if visit_type_id: stmt = stmt.where(Visit.visit_type_id == visit_type_id)
+    if status_id: stmt = stmt.where(Visit.visit_status_id == status_id)
     allowed = allowed_branch_ids(db, user)
     if branch_id:
         ensure_branch_access(db, user, branch_id)
         stmt = stmt.where(Visit.branch_id == branch_id)
     elif allowed is not None:
         stmt = stmt.where(Visit.branch_id.in_(allowed))
-    rows = list(db.scalars(stmt.order_by(Visit.checkin_at.desc()).limit(limit)).all())
+    rows = list(db.scalars(stmt.order_by(Visit.checkin_at.desc(), Visit.visit_id).offset(offset).limit(limit)).all())
     return [_serialize(db, x) for x in rows]
 
 
@@ -94,43 +102,8 @@ def create(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("VISIT_CREATE")),
 ):
-    if not payload.identity_confirmed:
-        raise HTTPException(409, "Confirm Name + Age/Gender + UHID before creating the Visit")
-    patient = db.get(Patient, payload.patient_id)
-    if not patient or patient.organization_id != user.organization_id:
-        raise HTTPException(400, "Patient not found")
-    ensure_branch_access(db, user, payload.branch_id)
-    if payload.doctor_id:
-        doctor = db.get(Doctor, payload.doctor_id)
-        if not doctor or doctor.organization_id != user.organization_id:
-            raise HTTPException(400, "Doctor not found")
-    if not db.get(VisitType, payload.visit_type_id):
-        raise HTTPException(400, "Visit Type not found")
-    if not db.get(VisitStatus, payload.visit_status_id):
-        raise HTTPException(400, "Visit Status not found")
-    if payload.appointment_id:
-        appointment = db.get(Appointment, payload.appointment_id)
-        if not appointment or appointment.organization_id != user.organization_id:
-            raise HTTPException(400, "Appointment not found")
-        if appointment.patient_id and appointment.patient_id != payload.patient_id:
-            raise HTTPException(409, "Appointment belongs to another Patient")
-        appointment.patient_id = payload.patient_id
-        checked_in = db.scalar(select(AppointmentStatus).where(AppointmentStatus.code == "CHECKED_IN"))
-        if checked_in:
-            appointment.appointment_status_id = checked_in.appointment_status_id
-            appointment.row_version += 1
-    for complaint_id in payload.chief_complaint_ids:
-        if not db.get(ChiefComplaint, complaint_id):
-            raise HTTPException(400, "Chief Complaint not found")
-    data = payload.model_dump(exclude={"chief_complaint_ids", "identity_confirmed"})
-    visit = Visit(**data, created_by=user.user_id, updated_by=user.user_id)
-    db.add(visit)
-    db.flush()
-    for complaint_id in payload.chief_complaint_ids:
-        db.add(VisitComplaint(visit_id=visit.visit_id, chief_complaint_id=complaint_id))
-    db.commit()
-    db.refresh(visit)
-    return visit
+    from app.services.visits import create_visit
+    return create_visit(db, user=user, payload=payload)
 
 
 @router.get("/{visit_id}")

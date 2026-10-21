@@ -1,10 +1,11 @@
 "use client";
 import {FormEvent,useEffect,useMemo,useRef,useState} from "react";
+import VisitRegistration from "../../components/VisitRegistration";
 import {apiFetch} from "../../lib/api";
-import type {Appointment,Bootstrap,ConversionPreview,Patient,Visit} from "../../lib/types";
+import type {Bootstrap,ConversionPreview,Patient,Visit} from "../../lib/types";
 
 function ageLabel(p:Patient){return p.age!=null?`${p.age} yrs${p.age_is_estimated?" (approx.)":""}`:"Age —"}
-function dt(v?:string|null){return v?new Date(v).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"}):"—"}
+function dt(v?:string|null){return v?new Date(v).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Kolkata"}):"—"}
 
 
 type RegForm={full_name:string;mobile:string;alternate_mobile:string;gender:string;dob:string;dob_is_estimated:boolean;age_years:string;registration_branch_id:string;region_id:string;district_id:string;locality_id:string;address_line:string;duplicate_override_confirmed:boolean};
@@ -30,21 +31,15 @@ export default function PatientsPage(){
   const [matches,setMatches]=useState<Patient[]>([]);
   const [existingPatientId,setExistingPatientId]=useState<string>("");
   const [showVisit,setShowVisit]=useState(false);
-  const [confirmedIdentity,setConfirmedIdentity]=useState(false);
-  const [todayAppts,setTodayAppts]=useState<Appointment[]>([]);
-  const [visitForm,setVisitForm]=useState({appointment_id:"",branch_id:"",doctor_id:"",visit_type_id:"",visit_status_id:"",chief_complaint_ids:[] as string[]});
 
   const districts=useMemo(()=>meta?.districts.filter(x=>!form.region_id||x.region_id===form.region_id)||[],[meta,form.region_id]);
   const localities=useMemo(()=>meta?.localities.filter(x=>!form.district_id||x.district_id===form.district_id)||[],[meta,form.district_id]);
-  const waitingStatus=useMemo(()=>meta?.visit_statuses.find(x=>x.code==="WAITING")||meta?.visit_statuses.find(x=>x.code==="CREATED"),[meta]);
-  const consultationType=useMemo(()=>meta?.visit_types.find(x=>x.code==="CONSULTATION"),[meta]);
 
   useEffect(()=>{
     const params=new URLSearchParams(window.location.search);const lead=params.get("lead");const patient=params.get("patient");
     apiFetch<Bootstrap>("/meta/bootstrap").then(x=>{
       setMeta(x);
       setForm(f=>({...f,registration_branch_id:x.branches[0]?.id||""}));
-      setVisitForm(v=>({...v,branch_id:x.branches[0]?.id||"",doctor_id:x.doctors[0]?.id||"",visit_type_id:x.visit_types.find(t=>t.code==="CONSULTATION")?.id||x.visit_types[0]?.id||"",visit_status_id:x.visit_statuses.find(t=>t.code==="WAITING")?.id||x.visit_statuses[0]?.id||""}));
       if(lead) openLeadConversion(lead,x); else if(patient) openPatient(patient);
     }).catch(e=>setError(e.message));
   },[]);
@@ -140,25 +135,6 @@ export default function PatientsPage(){
     catch(e){setError(e instanceof Error?e.message:"Patient search failed")}
   }
 
-  async function startVisit(){
-    if(!selected||!meta)return;
-    setConfirmedIdentity(false);
-    const appts=await apiFetch<Appointment[]>(`/appointments?patient_id=${selected.patient_id}`);setTodayAppts(appts);
-    const first=appts.find(a=>!["CANCELLED","NO_SHOW","COMPLETED"].includes(a.status_code||""));
-    setVisitForm(v=>({...v,appointment_id:first?.appointment_id||"",branch_id:first?.branch_id||selected.registration_branch_id||v.branch_id,doctor_id:first?.doctor_id||v.doctor_id,visit_type_id:consultationType?.id||v.visit_type_id,visit_status_id:waitingStatus?.id||v.visit_status_id,chief_complaint_ids:[]}));
-    setShowVisit(true);
-  }
-
-  async function createVisit(e:FormEvent){
-    e.preventDefault();if(!selected||!confirmedIdentity)return;setError("");
-    try{
-      await apiFetch("/visits",{method:"POST",body:JSON.stringify({patient_id:selected.patient_id,appointment_id:visitForm.appointment_id||null,branch_id:visitForm.branch_id,doctor_id:visitForm.doctor_id||null,visit_type_id:visitForm.visit_type_id,visit_status_id:visitForm.visit_status_id,checkin_at:new Date().toISOString(),chief_complaint_ids:visitForm.chief_complaint_ids,identity_confirmed:true})});
-      setShowVisit(false);setVisits(await apiFetch<Visit[]>(`/patients/${selected.patient_id}/visits`));
-    }catch(e){setError(e instanceof Error?e.message:"Unable to create Visit")}
-  }
-
-  function toggleComplaint(id:string){setVisitForm(v=>({...v,chief_complaint_ids:v.chief_complaint_ids.includes(id)?v.chief_complaint_ids.filter(x=>x!==id):[...v.chief_complaint_ids,id]}))}
-
   async function addCustomLocality(){
     if(!form.district_id){setError("Select District before adding a custom Locality.");return}
     const name=window.prompt("Enter new Locality");if(!name?.trim())return;
@@ -167,17 +143,10 @@ export default function PatientsPage(){
       setForm(f=>({...f,locality_id:r.locality_id}));
     }catch(e){setError(e instanceof Error?e.message:"Unable to add Locality")}}
 
-  async function addCustomComplaint(){
-    const name=window.prompt("Enter new Chief Complaint");if(!name?.trim())return;
-    try{const r=await apiFetch<any>("/masters/chief-complaints",{method:"POST",body:JSON.stringify({name:name.trim()})});
-      setMeta(m=>m?({...m,chief_complaints:[...m.chief_complaints.filter(x=>x.id!==r.chief_complaint_id),{id:r.chief_complaint_id,name:r.name}]}):m);
-      setVisitForm(v=>({...v,chief_complaint_ids:[...v.chief_complaint_ids.filter(x=>x!==r.chief_complaint_id),r.chief_complaint_id]}));
-    }catch(e){setError(e instanceof Error?e.message:"Unable to add Chief Complaint")}}
-
   return <>
     <div className="header"><div><div className="eyebrow">PATIENT REGISTER</div><h1 className="page-title">Patients</h1><div className="muted">Global UHID, shared-mobile-safe matching, verified registration and Visit history.</div></div><button onClick={beginNewPatient}>+ Register Patient</button></div>
-    {notice&&<div role="status" className="alert">{notice}</div>}
-    {error&&!showRegister&&<div role="alert" className="alert danger-box">{error}</div>}
+    {notice&&!selected&&<div role="status" className="alert">{notice}</div>}
+    {error&&!showRegister&&!showVisit&&<div role="alert" className="alert danger-box">{error}</div>}
     <div className="toolbar"><input placeholder="Search UHID, name or mobile" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&search()}/><button className="secondary" onClick={search}>Search</button><button className="ghost" onClick={()=>{setQ("");setPatients([])}}>Clear</button></div>
     <div className="table-wrap"><table><thead><tr><th>Patient</th><th>Contact</th><th>Area</th><th>Last Visit</th><th>Profile</th><th></th></tr></thead><tbody>
       {patients.map(p=><tr key={p.patient_id}><td><b>{p.full_name}</b><div className="muted">{p.uhid} · {ageLabel(p)} · {p.gender||"—"}</div></td><td>{p.primary_mobile||"—"}</td><td>{p.area||"—"}</td><td>{dt(p.last_visit_at)}</td><td><span className="badge">{p.profile_status}</span></td><td><button className="small secondary" onClick={()=>openPatient(p.patient_id)}>Open</button></td></tr>)}
@@ -214,21 +183,12 @@ export default function PatientsPage(){
     {selected&&<div className="drawer-backdrop" onClick={()=>setSelected(null)}><div className="drawer wide-drawer" onClick={e=>e.stopPropagation()}><div className="modal-head"><div><div className="eyebrow">PATIENT</div><h2>{selected.full_name}</h2><div className="muted">{selected.uhid} · {ageLabel(selected)} · {selected.gender||"—"}</div></div><button aria-label="Close Patient" className="icon" onClick={()=>setSelected(null)}>×</button></div>
       <div className="identity-banner"><div><span>UHID</span><b>{selected.uhid}</b></div><div><span>Mobile</span><b>{selected.primary_mobile||"—"}</b></div><div><span>Area</span><b>{selected.area||"—"}</b></div><div><span>Profile</span><b>{selected.profile_status}</b></div></div>
       {selected.age_recorded_on&&<p className="muted">Approximate age recorded on {new Date(selected.age_recorded_on).toLocaleDateString("en-IN")}. DOB is unknown.</p>}
-      <div className="row" style={{margin:"16px 0"}}><button onClick={startVisit}>+ New Visit</button></div>
-      <div className="card inset"><h3>Visit history</h3>{visits.length?visits.map(v=><div className="visit-history" key={v.visit_id}><div><b>{v.visit_type||"Visit"}</b><div className="muted">{dt(v.checkin_at)} · {v.branch||"—"} · {v.doctor||"No doctor"}</div></div><span className="badge">{v.status||"—"}</span></div>):<div className="empty">No previous Visits.</div>}</div>
+      {notice&&<div role="status" className="alert">{notice}</div>}
+      <div className="row" style={{margin:"16px 0"}}><button onClick={()=>{setNotice("");setShowVisit(true)}}>+ New Visit</button></div>
+      <div className="card inset"><h3>Visit history</h3><p className="muted">Latest 50 Visits in your permitted branches.</p>{visits.length?visits.map(v=><div className="visit-history" key={v.visit_id}><div><a href={`/visits?visit=${v.visit_id}`}><b>{v.visit_type||"Visit"}</b></a><div className="muted">Visit ID: {v.visit_id}</div><div className="muted">{(v.complaints||[]).map(c=>c.name).join(", ")}</div><div className="muted">{dt(v.checkin_at)} · {v.branch||"—"} · {v.doctor||"No doctor"}</div></div><span className="badge">{v.status||"—"}</span></div>):<div className="empty">No previous Visits.</div>}</div>
     </div></div>}
 
-    {showVisit&&selected&&<div className="modal-backdrop"><div className="modal"><div className="modal-head"><div><div className="eyebrow">NEW VISIT</div><h2>Confirm Patient & Create Visit</h2></div><button className="icon" onClick={()=>setShowVisit(false)}>×</button></div>
-      <div className="confirm-patient"><div className="confirm-name">{selected.full_name}</div><div>{ageLabel(selected)} · {selected.gender||"—"}</div><div className="confirm-uhid">UHID: {selected.uhid}</div></div>
-      <label className="checkline identity-check"><input type="checkbox" checked={confirmedIdentity} onChange={e=>setConfirmedIdentity(e.target.checked)}/> I confirmed Name + Age/Gender + UHID for the correct Patient.</label>
-      <form onSubmit={createVisit} className="form-grid" style={{marginTop:16}}>
-        <label>Today's appointment<select value={visitForm.appointment_id} onChange={e=>{const a=todayAppts.find(x=>x.appointment_id===e.target.value);setVisitForm({...visitForm,appointment_id:e.target.value,branch_id:a?.branch_id||visitForm.branch_id,doctor_id:a?.doctor_id||visitForm.doctor_id})}}><option value="">Walk-in / no appointment</option>{todayAppts.map(a=><option key={a.appointment_id} value={a.appointment_id}>{new Date(a.scheduled_start).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})} · {a.doctor||"Doctor"} · {a.status}</option>)}</select></label>
-        <label>Branch<select required value={visitForm.branch_id} onChange={e=>setVisitForm({...visitForm,branch_id:e.target.value})}>{meta?.branches.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-        <label>Doctor<select value={visitForm.doctor_id} onChange={e=>setVisitForm({...visitForm,doctor_id:e.target.value})}><option value="">Unassigned</option>{meta?.doctors.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-        <label>Visit type<select required value={visitForm.visit_type_id} onChange={e=>setVisitForm({...visitForm,visit_type_id:e.target.value})}>{meta?.visit_types.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-        <label className="span2">Chief complaints<div className="chip-grid">{meta?.chief_complaints.map(x=><button type="button" className={visitForm.chief_complaint_ids.includes(x.id)?"chip selected":"chip"} key={x.id} onClick={()=>toggleComplaint(x.id)}>{x.name}</button>)}<button type="button" className="chip" onClick={addCustomComplaint}>+ Add Custom</button></div></label>
-        <div className="span2 row end"><button type="button" className="secondary" onClick={()=>setShowVisit(false)}>Cancel</button><button disabled={!confirmedIdentity}>Create Visit</button></div>
-      </form>
-    </div></div>}
+    {showVisit&&selected&&<VisitRegistration patientId={selected.patient_id} onClose={()=>setShowVisit(false)} onSaved={v=>{setShowVisit(false);setNotice(`Visit saved. Visit ID: ${v.visit_id}. UHID unchanged: ${selected.uhid}.`);apiFetch<Visit[]>(`/patients/${selected.patient_id}/visits`).then(setVisits).catch(e=>setError(e.message))}}/>}
+
   </>
 }
