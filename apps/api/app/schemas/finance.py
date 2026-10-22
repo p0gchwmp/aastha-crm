@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from app.schemas.common import ORMModel
 
 
@@ -9,7 +9,7 @@ class ConsultationFeeCreate(BaseModel):
     service_id: uuid.UUID
     doctor_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
-    amount: Decimal = Field(gt=0)
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     effective_from: date
     effective_until: date | None = None
 
@@ -25,7 +25,33 @@ class ConsultationFeeOut(ORMModel):
     active: bool
 
 
-class ConsultationBillDraftCreate(BaseModel):
+class FinanceIdentity(BaseModel):
+    identity_confirmed: bool = False
+    patient_row_version: int = Field(ge=1)
+
+
+class ConsultationPolicyCreate(BaseModel):
+    name: str = Field(min_length=3, max_length=120)
+    free_followup_window_days: int = Field(ge=0, le=365)
+    max_free_followups: int = Field(ge=0, le=20)
+    effective_from: date
+
+    @field_validator("name")
+    @classmethod
+    def nonempty(cls, value):
+        if len(value.strip()) < 3: raise ValueError("Enter a policy name")
+        return value.strip()
+
+
+class FreeFollowupCreate(FinanceIdentity):
+    entitlement_id: uuid.UUID
+
+
+class BillFinalizeCreate(BaseModel):
+    expected_row_version: int = Field(ge=1)
+
+
+class ConsultationBillDraftCreate(FinanceIdentity):
     patient_id: uuid.UUID
     visit_id: uuid.UUID
     doctor_id: uuid.UUID
@@ -33,16 +59,18 @@ class ConsultationBillDraftCreate(BaseModel):
     fee_version_id: uuid.UUID
 
 
-class ConsultationBillFromVisitCreate(BaseModel):
+class ConsultationBillFromVisitCreate(FinanceIdentity):
     visit_id: uuid.UUID
 
 
-class ConsultationPaymentCreate(BaseModel):
+class ConsultationPaymentCreate(FinanceIdentity):
+    model_config = ConfigDict(extra="forbid")
+    payment_request_id: uuid.UUID
+    expected_bill_row_version: int = Field(ge=1)
     consultation_bill_id: uuid.UUID
-    amount: Decimal = Field(gt=0)
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     payment_mode_id: uuid.UUID
     branch_id: uuid.UUID
-    received_at: datetime
 
 
 class ConsultationEligibilityOut(BaseModel):
@@ -66,6 +94,11 @@ class ConsultationDecisionOut(BaseModel):
     clearance_status: str | None = None
     fee_version_id: uuid.UUID | None = None
     amount: Decimal | None = None
+    patient_age: int | None = None
+    patient_gender: str | None = None
+    patient_row_version: int
+    bill_row_version: int | None = None
+    payments: list[dict] = Field(default_factory=list)
     paid_amount: Decimal = Decimal("0")
     balance: Decimal | None = None
 
@@ -87,6 +120,7 @@ class BillOut(ORMModel):
 
 
 class PaymentOut(ORMModel):
+    receipt_number: str | None = None
     payment_id: uuid.UUID
     consultation_bill_id: uuid.UUID
     amount: Decimal

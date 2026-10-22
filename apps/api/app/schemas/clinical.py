@@ -36,3 +36,9 @@ class ProcedureOrderCreate(BaseModel):
     order_status_id: uuid.UUID
     ordered_at: datetime
     notes: str | None = None
+
+
+class VisitDoctorAssign(BaseModel):
+    doctor_id: uuid.UUID
+    row_version: int = Field(ge=1)
+    reason: str = Field(min_length=3, max_length=500)
