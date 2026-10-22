@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, Index
+from datetime import date, datetime
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin
@@ -127,3 +127,32 @@ class ProcedureFinancialStatus(Base, TimestampMixin):
     source_system: Mapped[str | None] = mapped_column(String(80))
     external_reference: Mapped[str | None] = mapped_column(String(160))
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ConsultationNote(Base, TimestampMixin):
+    __tablename__ = "consultation_notes"
+    __table_args__ = (UniqueConstraint("visit_id"), {"schema": "clinical"})
+    note_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    visit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clinical.visits.visit_id", ondelete="RESTRICT"))
+    doctor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("core.doctors.doctor_id", ondelete="RESTRICT"))
+    history: Mapped[str | None] = mapped_column(Text)
+    examination: Mapped[str | None] = mapped_column(Text)
+    assessment: Mapped[str | None] = mapped_column(Text)
+    plan: Mapped[str | None] = mapped_column(Text)
+    followup_advice: Mapped[str | None] = mapped_column(Text)
+    followup_date: Mapped[date | None] = mapped_column(Date)
+    identity_patient_version: Mapped[int]
+    identity_confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ConsultationNoteRevision(Base):
+    __tablename__ = "consultation_note_revisions"
+    __table_args__ = (UniqueConstraint("actor_user_id", "request_id"), Index("ix_consultation_revision_note", "note_id", "occurred_at"), {"schema": "clinical"})
+    revision_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    note_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clinical.consultation_notes.note_id", ondelete="RESTRICT"))
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("core.users.user_id", ondelete="RESTRICT"))
+    request_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    action: Mapped[str] = mapped_column(String(20))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    snapshot: Mapped[dict]

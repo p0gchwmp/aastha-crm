@@ -36,6 +36,7 @@ export default function AppShell({children}:{children:React.ReactNode}) {
         <Link className={pathname.startsWith("/patients")?"active":""} href="/patients">Patients</Link>
         <Link className={pathname.startsWith("/visits")?"active":""} href="/visits">Visits</Link>
         <Link className={pathname.startsWith("/finance")?"active":""} href="/finance">Consultation Finance</Link>
+        {me?.permissions?.includes("CONSULTATION_CLINICAL")&&<Link className={pathname.startsWith("/doctor")?"active":""} href="/doctor">Doctor Consultations</Link>}
         {me?.permissions?.includes("PROCEDURE_VIEW")&&<Link className={pathname.startsWith("/procedures")?"active":""} href="/procedures">Procedures</Link>}
         {me?.permissions?.includes("MASTER_APPROVE")&&<Link className={pathname.startsWith("/masters")?"active":""} href="/masters">Master Approvals</Link>}
         {me?.permissions?.includes("PATIENT_IMPORT")&&<Link className={pathname.startsWith("/imports")?"active":""} href="/imports">Legacy Import</Link>}

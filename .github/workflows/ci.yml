@@ -63,13 +63,43 @@ jobs:
           version=connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one();
           tables=connection.execute(text(\"SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')\")).scalar_one();
           connection.close();
-          assert version == '0010_consultation_payments', version;
+          assert version == '0011_doctor_consultation', version;
           assert tables >= 63, tables"
 
       - name: Test reception staff lifecycle on PostgreSQL
         env:
           STAFF_TEST_DATABASE_URL: postgresql+psycopg://aastha:ci-only-password@localhost:5432/aastha_ci
         run: pytest -q tests/test_staff_access.py tests/test_lead_register.py tests/test_appointments.py tests/test_patient_registration.py tests/test_visit_management.py tests/test_consultation_workflow.py
+      - name: Verify additive Doctor migration on populated clinic data
+        run: |
+          alembic downgrade 0010_consultation_payments
+          python ../../tools/verify_doctor_upgrade.py snapshot
+          alembic upgrade head
+          python ../../tools/verify_doctor_upgrade.py verify
+      - name: Test Doctor workflow and concurrent saves on PostgreSQL
+        env:
+          STAFF_TEST_DATABASE_URL: postgresql+psycopg://aastha:ci-only-password@localhost:5432/aastha_ci
+        run: pytest -q tests/test_doctor_consultations.py
+      - name: Verify logical backup and restore of the test database
+        run: |
+          docker exec ${{ job.services.postgres.id }} pg_dump -U aastha -d aastha_ci -Fc > /tmp/staff-ci.dump
+          docker exec ${{ job.services.postgres.id }} createdb -U aastha aastha_restore
+          docker exec -i ${{ job.services.postgres.id }} pg_restore --exit-on-error -U aastha -d aastha_restore < /tmp/staff-ci.dump
+          python - <<'PYTEST'
+          import os
+          from sqlalchemy import create_engine, text
+          source = create_engine(os.environ['DATABASE_URL'])
+          restored = create_engine(os.environ['DATABASE_URL'].rsplit('/', 1)[0] + '/aastha_restore')
+          with source.connect() as a, restored.connect() as b:
+              for table in ('core.users', 'core.user_roles', 'audit.audit_events', 'crm.leads', 'crm.lead_contacts', 'crm.lead_interactions', 'crm.lead_status_history', 'crm.lead_dnc_history', 'scheduling.appointments', 'scheduling.doctor_schedules', 'scheduling.schedule_exceptions', 'patient.patients', 'patient.patient_contacts', 'patient.patient_addresses', 'crm.lead_patient_links', 'core.number_series', 'clinical.visits', 'clinical.visit_complaints', 'clinical.consultation_notes', 'clinical.consultation_note_revisions', 'consultation_finance.consultation_bills', 'consultation_finance.payments', 'consultation_finance.entitlements', 'consultation_finance.entitlement_usages', 'consultation_finance.consultation_clearances', 'consultation_finance.complimentary_authorizations', 'consultation_finance.fee_versions', 'consultation_finance.policy_versions'):
+                  sql = text('SELECT count(*) FROM ' + table)
+                  assert a.execute(sql).scalar_one() == b.execute(sql).scalar_one(), table
+                  rows = text('SELECT to_jsonb(t) FROM ' + table + ' AS t ORDER BY to_jsonb(t)::text')
+                  assert a.execute(rows).all() == b.execute(rows).all(), table + ' restored content'
+              assert b.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0011_doctor_consultation'
+          print('Logical backup restored; staff, Lead records, histories, audit and migration version match')
+          PYTEST
+
       - name: Verify populated financial migration preserves historical money
         run: |
           python ../../tools/verify_finance_upgrade.py snapshot
@@ -90,25 +120,6 @@ jobs:
           alembic upgrade head
           python ../../tools/verify_patient_upgrade.py verify
           STAFF_TEST_DATABASE_URL="$DATABASE_URL" pytest -q tests/test_staff_access.py
-      - name: Verify logical backup and restore of the test database
-        run: |
-          docker exec ${{ job.services.postgres.id }} pg_dump -U aastha -d aastha_ci -Fc > /tmp/staff-ci.dump
-          docker exec ${{ job.services.postgres.id }} createdb -U aastha aastha_restore
-          docker exec -i ${{ job.services.postgres.id }} pg_restore --exit-on-error -U aastha -d aastha_restore < /tmp/staff-ci.dump
-          python - <<'PYTEST'
-          import os
-          from sqlalchemy import create_engine, text
-          source = create_engine(os.environ['DATABASE_URL'])
-          restored = create_engine(os.environ['DATABASE_URL'].rsplit('/', 1)[0] + '/aastha_restore')
-          with source.connect() as a, restored.connect() as b:
-              for table in ('core.users', 'core.user_roles', 'audit.audit_events', 'crm.leads', 'crm.lead_contacts', 'crm.lead_interactions', 'crm.lead_status_history', 'crm.lead_dnc_history', 'scheduling.appointments', 'scheduling.doctor_schedules', 'scheduling.schedule_exceptions', 'patient.patients', 'patient.patient_contacts', 'patient.patient_addresses', 'crm.lead_patient_links', 'core.number_series', 'clinical.visits', 'clinical.visit_complaints', 'consultation_finance.consultation_bills', 'consultation_finance.payments', 'consultation_finance.entitlements', 'consultation_finance.entitlement_usages', 'consultation_finance.consultation_clearances', 'consultation_finance.complimentary_authorizations', 'consultation_finance.fee_versions', 'consultation_finance.policy_versions'):
-                  sql = text('SELECT count(*) FROM ' + table)
-                  assert a.execute(sql).scalar_one() == b.execute(sql).scalar_one(), table
-                  rows = text('SELECT to_jsonb(t) FROM ' + table + ' AS t ORDER BY to_jsonb(t)::text')
-                  assert a.execute(rows).all() == b.execute(rows).all(), table + ' restored content'
-              assert b.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0010_consultation_payments'
-          print('Logical backup restored; staff, Lead records, histories, audit and migration version match')
-          PYTEST
 
   staff-browser:
     runs-on: ubuntu-latest
@@ -131,6 +142,7 @@ jobs:
       STAFF_ADMIN_USERNAME: admin
       STAFF_ADMIN_PASSWORD: Browser!Admin2026
       BOOTSTRAP_SUPER_ADMIN_PASSWORD: Browser!Admin2026
+      BOOTSTRAP_DOCTOR_PASSWORD: Browser!Doctor2026
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
