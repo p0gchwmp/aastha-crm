@@ -584,8 +584,11 @@ def visit_decision(db: Session, *, visit: Visit, patient: Patient, organization_
         )
         paid_amount = Decimal(str(paid_value or 0))
         balance = Decimal(str(bill.net_amount)) - paid_amount
+    amount = Decimal(str(bill.net_amount)) if bill else (fee.amount if fee else None)
     if clearance:
         status = "CLEARED"
+        if clearance.clearance_type in {"FREE_FOLLOWUP","COMPLIMENTARY"}:
+            amount=Decimal("0");balance=Decimal("0")
     elif bill:
         status = f"BILL_{bill.bill_status}"
     from app.services.patients import calculate_age
@@ -611,7 +614,7 @@ def visit_decision(db: Session, *, visit: Visit, patient: Patient, organization_
         "clearance_type": clearance.clearance_type if clearance else None,
         "clearance_status": clearance.status if clearance else None,
         "fee_version_id": fee.fee_version_id if fee else None,
-        "amount": Decimal(str(bill.net_amount)) if bill else (fee.amount if fee else None),
+        "amount": amount,
         "paid_amount": paid_amount,
         "balance": balance,
     }

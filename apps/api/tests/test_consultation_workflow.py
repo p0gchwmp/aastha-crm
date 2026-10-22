@@ -115,6 +115,7 @@ def test_free_followup_once_and_wrong_patient_protection(finance,monkeypatch):
     p={'entitlement_id':d['entitlement_id'],'identity_confirmed':True,'patient_row_version':d['patient_row_version']};url=PREFIX+'/visits/'+follow['visit_id']+'/free-followup'
     r=c.post(url,headers=reception,json=p);assert r.status_code==200,r.text
     assert c.post(url,headers=reception,json=p).json()['clearance_id']==r.json()['clearance_id']
+    assert Decimal(decision(follow)['balance'])==0
     next_visit=visit();assert decision(next_visit)['status']=='PAID_CONSULTATION_REQUIRED'
     assert c.post(PREFIX+'/visits/'+next_visit['visit_id']+'/free-followup',headers=reception,json=p).status_code==409
     assert db.scalar(select(func.count()).select_from(EntitlementUsage).where(EntitlementUsage.visit_id==uuid.UUID(follow['visit_id'])))==1
@@ -133,7 +134,7 @@ def test_fee_versions_policy_and_doctor_complimentary(finance):
     assert c.post(PREFIX+'/complimentary',headers=reception,json={'visit_id':another['visit_id']}).status_code==403
     doc=login(users['DOCTOR'].username)
     r=c.post(PREFIX+'/complimentary',headers=doc,json={'visit_id':another['visit_id']});assert r.status_code==200,r.text
-    assert decision(another)['clearance_type']=='COMPLIMENTARY'
+    assert decision(another)['clearance_type']=='COMPLIMENTARY' and Decimal(decision(another)['balance'])==0
     assert c.post(PREFIX+'/complimentary',headers=doc,json={'visit_id':v['visit_id']}).status_code==409
     assert c.post(PREFIX+'/policies',headers=admin,json={'name':'New clinic policy','free_followup_window_days':7,'max_free_followups':2,'effective_from':'2030-01-01'}).status_code==200
     selected=engine._active_policy(db,on_date=date(2030,1,8),organization_id=users['ADMIN'].organization_id);assert selected.free_followup_window_days==7 and selected.max_free_followups==2
