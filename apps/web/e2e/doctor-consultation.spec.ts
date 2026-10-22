@@ -1,5 +1,4 @@
 import {test,expect} from '@playwright/test';
-test.afterEach(async({page},info)=>{if(info.status!==info.expectedStatus)console.log('Doctor test screen:',await page.locator('body').innerText())});
 test('Doctor starts, safely retries notes, completes consultation and preserves Patient history',async({page,request})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  const base=process.env.NEXT_PUBLIC_API_URL||'http://127.0.0.1:8000/api/v1';
