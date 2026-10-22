@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.access import allowed_branch_ids, ensure_branch_access
@@ -142,6 +143,9 @@ def mutate(visit_id: uuid.UUID, action: str, payload: NoteAction, db: Session = 
         log_audit(db, organization_id=user.organization_id, entity_type="VISIT", entity_id=visit_id, action="CONSULTATION_"+action.upper(), actor_user_id=user.user_id, after_data={"visit_version": visit.row_version, "note_version": note.row_version})
         db.commit()
         return detail_data(db, visit, patient)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "Request was already used or the consultation changed. Refresh before saving") from exc
     except Exception:
         db.rollback()
         raise
