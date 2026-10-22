@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin
@@ -11,6 +11,7 @@ class ConsultationPolicyVersion(Base, TimestampMixin):
     __tablename__ = "policy_versions"
     __table_args__ = {"schema": "consultation_finance"}
     policy_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("core.organizations.organization_id"))
     name: Mapped[str] = mapped_column(String(120))
     free_followup_window_days: Mapped[int] = mapped_column(Integer, default=10)
     max_free_followups: Mapped[int] = mapped_column(Integer, default=1)
@@ -88,7 +89,15 @@ class PaymentMode(Base):
 
 class ConsultationPayment(Base, TimestampMixin):
     __tablename__ = "payments"
-    __table_args__ = {"schema": "consultation_finance"}
+    __table_args__ = (
+        Index("uq_consultation_payment_request", "received_by", "payment_request_id", unique=True),
+        Index("uq_consultation_receipt_number", "receipt_number", unique=True),
+        {"schema": "consultation_finance"},
+    )
+    payment_request_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    payment_request_hash: Mapped[str | None] = mapped_column(String(64))
+    receipt_number: Mapped[str | None] = mapped_column(String(120))
+
     payment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     consultation_bill_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("consultation_finance.consultation_bills.consultation_bill_id"))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))

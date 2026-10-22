@@ -11,7 +11,7 @@ from app.models.clinical import ChiefComplaint, Visit, VisitComplaint, VisitStat
 from app.models.core import Branch, Doctor, User
 from app.models.patient import Patient
 from app.models.scheduling import Appointment, AppointmentStatus
-from app.schemas.clinical import VisitCreate, VisitOut
+from app.schemas.clinical import VisitCreate, VisitOut, VisitDoctorAssign
 from app.schemas.procedures import ProcedureOrderFromVisitRequest
 from app.services import procedures as procedure_service
 
@@ -133,3 +133,30 @@ def create_procedure_order(
         db, user=user, visit_id=visit_id, service_id=payload.service_id, notes=payload.notes
     )
     return {"procedure_order_id": order.procedure_order_id}
+
+
+@router.patch("/{visit_id}/doctor")
+def assign_doctor(visit_id: uuid.UUID, payload: VisitDoctorAssign,
+                  db: Session = Depends(get_db), user: User = Depends(require_permission("VISIT_EDIT"))):
+    from app.services.consultation import lock_context
+    from app.models.finance import ConsultationBill, ConsultationClearance
+    from app.services.audit import log_audit
+    try:
+        visit,patient=lock_context(db,visit_id=visit_id)
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from exc
+    if patient.organization_id!=user.organization_id: raise HTTPException(404,"Visit not found")
+    ensure_branch_access(db,user,visit.branch_id)
+    if visit.row_version!=payload.row_version: raise HTTPException(409,"Visit changed. Refresh before assigning Doctor")
+    if not payload.reason.strip(): raise HTTPException(422,"An assignment reason is required")
+    doctor=db.get(Doctor,payload.doctor_id)
+    if not doctor or doctor.organization_id!=user.organization_id or not doctor.active: raise HTTPException(400,"Active Doctor not found")
+    if db.scalar(select(ConsultationBill).where(ConsultationBill.visit_id==visit_id)) or db.scalar(select(ConsultationClearance).where(ConsultationClearance.visit_id==visit_id)):
+        raise HTTPException(409,"Doctor cannot change after consultation finance has started")
+    if visit.appointment_id:
+        appointment=db.get(Appointment,visit.appointment_id)
+        if appointment and appointment.doctor_id!=payload.doctor_id: raise HTTPException(409,"Doctor must match the linked appointment")
+    before=str(visit.doctor_id) if visit.doctor_id else None
+    visit.doctor_id=payload.doctor_id;visit.updated_by=user.user_id;visit.row_version+=1
+    log_audit(db,organization_id=user.organization_id,entity_type="VISIT",entity_id=visit_id,action="VISIT_DOCTOR_ASSIGNED",actor_user_id=user.user_id,before_data={"doctor_id":before},after_data={"doctor_id":str(payload.doctor_id)},reason=payload.reason.strip())
+    db.commit();return _serialize(db,visit)

@@ -1,166 +1,78 @@
 "use client";
-import {useCallback,useEffect,useMemo,useState} from "react";
-import {apiFetch} from "../../lib/api";
-import type {Bootstrap,ConsultationBill,ConsultationPayment,DailyFinance,FinanceDecision,FinanceSetup,Visit} from "../../lib/types";
-
-type Me={name:string;roles:string[];permissions:string[]};
-
-function today(){return new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Kolkata"})}
-function money(x?:string|null){return `₹${Number(x||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2})}`}
-function fmtDateTime(x?:string|null){if(!x)return "—";return new Date(x).toLocaleString("en-IN",{timeZone:"Asia/Kolkata",dateStyle:"medium",timeStyle:"short"})}
-
+import {useEffect,useRef,useState} from 'react';
+import {apiFetch} from '../../lib/api';
+import {indiaDate} from '../../components/VisitRegistration';
+import type {Bootstrap,ConsultationBill,ConsultationPayment,DailyFinance,FinanceDecision,FinanceSetup,Visit} from '../../lib/types';
+type Me={user_id:string;username:string;permissions:string[]};
+type Pending={consultation_bill_id:string;amount:string;payment_mode_id:string;branch_id:string;payment_request_id:string;expected_bill_row_version:number;identity_confirmed:boolean;patient_row_version:number};
+const money=(x?:string|null)=>`₹${Number(x||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const dt=(x:string)=>new Date(x).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'});
 export default function Finance(){
-  const [bootstrap,setBootstrap]=useState<Bootstrap|null>(null);
-  const [setup,setSetup]=useState<FinanceSetup|null>(null);
-  const [me,setMe]=useState<Me|null>(null);
-  const [visits,setVisits]=useState<Visit[]>([]);
-  const [decisions,setDecisions]=useState<Record<string,FinanceDecision>>({});
-  const [report,setReport]=useState<DailyFinance|null>(null);
-  const [onDate,setOnDate]=useState(today());
-  const [branchId,setBranchId]=useState("");
-  const [doctorId,setDoctorId]=useState("");
-  const [busy,setBusy]=useState<string|null>(null);
-  const [error,setError]=useState("");
-  const [notice,setNotice]=useState("");
-  const [paymentMode,setPaymentMode]=useState<Record<string,string>>({});
-  const [paymentAmount,setPaymentAmount]=useState<Record<string,string>>({});
-  const [feeAmount,setFeeAmount]=useState("");
-  const [feeBranch,setFeeBranch]=useState("");
-  const [feeDoctor,setFeeDoctor]=useState("");
-  const [feeDate,setFeeDate]=useState(today());
-
-  const canCorrect=!!me?.permissions.includes("FINANCE_CORRECT");
-  const canBill=!!me?.permissions.includes("CONSULTATION_BILL_CREATE");
-  const canPay=!!me?.permissions.includes("CONSULTATION_PAYMENT_CREATE");
-  const canComplimentary=!!me?.permissions.includes("CONSULTATION_COMPLIMENTARY");
-  const consultService=bootstrap?.services.find(x=>x.code==="CONSULT");
-
-  const load=useCallback(async()=>{
-    setError("");
-    try{
-      const [b,s,m]=await Promise.all([
-        apiFetch<Bootstrap>("/meta/bootstrap"),
-        apiFetch<FinanceSetup>("/consultation-finance/setup"),
-        apiFetch<Me>("/auth/me"),
-      ]);
-      setBootstrap(b);setSetup(s);setMe(m);
-      const q=new URLSearchParams({on_date:onDate});
-      if(branchId)q.set("branch_id",branchId);
-      const all=await apiFetch<Visit[]>(`/visits?${q}`);
-      const financeVisits=all.filter(v=>["CONSULTATION","FOLLOW_UP"].includes(v.visit_type_code||""));
-      setVisits(financeVisits);
-      const pairs=await Promise.all(financeVisits.map(async v=>[v.visit_id,await apiFetch<FinanceDecision>(`/consultation-finance/visits/${v.visit_id}/decision`)] as const));
-      setDecisions(Object.fromEntries(pairs));
-      const rq=new URLSearchParams({on_date:onDate});
-      if(branchId)rq.set("branch_id",branchId);
-      if(doctorId)rq.set("doctor_id",doctorId);
-      setReport(await apiFetch<DailyFinance>(`/consultation-finance/reports/daily?${rq}`));
-    }catch(e:any){setError(e.message||"Unable to load Consultation Finance")}
-  },[onDate,branchId,doctorId]);
-
-  useEffect(()=>{load()},[load]);
-
-  const refreshDecision=async(visitId:string)=>{
-    const d=await apiFetch<FinanceDecision>(`/consultation-finance/visits/${visitId}/decision`);
-    setDecisions(x=>({...x,[visitId]:d}));
-    const rq=new URLSearchParams({on_date:onDate});if(branchId)rq.set("branch_id",branchId);if(doctorId)rq.set("doctor_id",doctorId);
-    setReport(await apiFetch<DailyFinance>(`/consultation-finance/reports/daily?${rq}`));
-  };
-
-  const act=async(key:string,fn:()=>Promise<any>,message:string,visitId?:string)=>{
-    setBusy(key);setError("");setNotice("");
-    try{await fn();setNotice(message);if(visitId)await refreshDecision(visitId);else await load()}
-    catch(e:any){setError(e.message||"Action failed")}
-    finally{setBusy(null)}
-  };
-
-  const createBill=(visitId:string)=>act(`bill-${visitId}`,()=>apiFetch<ConsultationBill>("/consultation-finance/bills/from-visit",{method:"POST",body:JSON.stringify({visit_id:visitId})}),"Consultation bill draft created.",visitId);
-  const finalizeBill=(visitId:string,billId:string)=>act(`final-${visitId}`,()=>apiFetch<ConsultationBill>(`/consultation-finance/bills/${billId}/finalize`,{method:"POST"}),"Bill finalized with sequential number.",visitId);
-  const useFree=(visitId:string,entitlementId:string)=>act(`free-${visitId}`,()=>apiFetch(`/consultation-finance/visits/${visitId}/free-followup?entitlement_id=${entitlementId}`,{method:"POST"}),"Free follow-up entitlement used and visit cleared.",visitId);
-  const makeComplimentary=(visitId:string)=>act(`comp-${visitId}`,()=>apiFetch("/consultation-finance/complimentary",{method:"POST",body:JSON.stringify({visit_id:visitId})}),"Doctor complimentary authorization recorded.",visitId);
-  const pay=async(v:Visit,d:FinanceDecision)=>{
-    if(!d.bill_id||!d.balance)return;
-    const mode=paymentMode[v.visit_id]||setup?.payment_modes[0]?.id;
-    const amount=paymentAmount[v.visit_id]||d.balance;
-    if(!mode){setError("No payment mode configured");return}
-    setBusy(`pay-${v.visit_id}`);setError("");setNotice("");
-    try{
-      const payment=await apiFetch<ConsultationPayment>("/consultation-finance/payments",{method:"POST",body:JSON.stringify({consultation_bill_id:d.bill_id,amount,payment_mode_id:mode,branch_id:v.branch_id,received_at:new Date().toISOString()})});
-      setNotice("Payment recorded. Financial clearance updated.");await refreshDecision(v.visit_id);
-      window.open(`/print/receipt/${payment.payment_id}`,"_blank");
-    }catch(e:any){setError(e.message||"Payment failed")}finally{setBusy(null)}
-  };
-
-  const createFee=()=>{
-    if(!consultService||!feeAmount)return setError("Enter consultation fee amount");
-    return act("fee",()=>apiFetch("/consultation-finance/fees",{method:"POST",body:JSON.stringify({service_id:consultService.id,doctor_id:feeDoctor||null,branch_id:feeBranch||null,amount:feeAmount,effective_from:feeDate,effective_until:null})}),"New consultation fee version created.");
-  };
-
-  const filteredVisits=useMemo(()=>doctorId?visits.filter(v=>v.doctor_id===doctorId):visits,[visits,doctorId]);
-
-  return <>
-    <div className="header">
-      <div><div className="eyebrow">PHASE 1 FINANCE</div><h1 className="page-title">Consultation Finance</h1><div className="muted">Clinical Visit stays separate. This module owns consultation money and clearance.</div></div>
-      <button onClick={load} disabled={!!busy}>Refresh</button>
-    </div>
-    {error&&<div className="alert danger-box">{error}</div>}
-    {notice&&<div className="alert success-box">{notice}</div>}
-
-    <div className="toolbar card" style={{marginTop:16}}>
-      <label>Date<input type="date" value={onDate} onChange={e=>setOnDate(e.target.value)}/></label>
-      <label>Branch<select value={branchId} onChange={e=>setBranchId(e.target.value)}><option value="">All branches</option>{bootstrap?.branches.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-      <label>Doctor<select value={doctorId} onChange={e=>setDoctorId(e.target.value)}><option value="">All doctors</option>{bootstrap?.doctors.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-      <div className="policy-pill">{setup?.active_policy?`${setup.active_policy.free_followup_window_days}-day follow-up • ${setup.active_policy.max_free_followups} free use`:`No active follow-up policy`}</div>
-    </div>
-
-    <div className="grid" style={{marginTop:16}}>
-      <div className="card"><div className="muted">Consultations cleared</div><div className="kpi">{report?.total_consultation_visits??"—"}</div></div>
-      <div className="card"><div className="muted">Paid</div><div className="kpi">{report?.paid_consultations??"—"}</div></div>
-      <div className="card"><div className="muted">Free / Complimentary</div><div className="kpi">{report?report.free_followups+report.complimentary_consultations:"—"}</div></div>
-      <div className="card"><div className="muted">Collection</div><div className="kpi">{money(report?.total_collection)}</div><div className="muted">Cash {money(report?.cash)} • UPI {money(report?.upi)} • Card {money(report?.card)}</div></div>
-    </div>
-
-    {canCorrect&&<div className="card" style={{marginTop:18}}>
-      <div className="header"><div><h3>Consultation Fee Master</h3><div className="muted">Create a new effective-dated version; historical bills never change.</div></div></div>
-      <div className="form-grid">
-        <label>Amount (₹)<input type="number" min="1" step="0.01" value={feeAmount} onChange={e=>setFeeAmount(e.target.value)} placeholder="Enter fee"/></label>
-        <label>Branch<select value={feeBranch} onChange={e=>setFeeBranch(e.target.value)}><option value="">All branches</option>{bootstrap?.branches.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-        <label>Doctor<select value={feeDoctor} onChange={e=>setFeeDoctor(e.target.value)}><option value="">All doctors</option>{bootstrap?.doctors.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-        <label>Effective from<input type="date" value={feeDate} onChange={e=>setFeeDate(e.target.value)}/></label>
-      </div>
-      <button onClick={createFee} disabled={busy==="fee"}>{busy==="fee"?"Saving…":"Create Fee Version"}</button>
-      <div className="muted" style={{marginTop:10}}>Configured versions: {setup?.fee_versions.length||0}</div>
-    </div>}
-
-    <div className="header" style={{marginTop:24}}><div><h2>Consultation queue</h2><div className="muted">The system decides whether money is required; Reception does not calculate the 10-day rule manually.</div></div></div>
-    <div className="stack">
-      {filteredVisits.length===0&&<div className="card muted">No Consultation/Follow-Up visits for this filter.</div>}
-      {filteredVisits.map(v=>{
-        const d=decisions[v.visit_id];
-        if(!d)return <div className="card" key={v.visit_id}>Loading {v.patient_name}…</div>;
-        const status=d.status;
-        const cleared=status==="CLEARED";
-        return <div className="card finance-row" key={v.visit_id}>
-          <div className="finance-main">
-            <div className="header"><div><h3>{v.patient_name} <span className="muted">• {v.uhid}</span></h3><div className="muted">{v.visit_type} • {v.doctor||"Doctor not assigned"} • {v.branch} • {fmtDateTime(v.checkin_at)}</div></div><span className={`status-chip ${cleared?"good":""}`}>{cleared?`${d.clearance_type} • CLEARED`:status.replace(/_/g," ")}</span></div>
-            {d.valid_until&&status==="FREE_FOLLOWUP_ELIGIBLE"&&<div className="info-strip">Free follow-up valid until {fmtDateTime(d.valid_until)}.</div>}
-            {d.amount&&<div className="amount-line">Consultation amount <b>{money(d.amount)}</b>{d.paid_amount!=="0"&&<> • Paid {money(d.paid_amount)} • Balance {money(d.balance)}</>}</div>}
-            {d.bill_number&&<div className="muted">Bill: <b>{d.bill_number}</b> • {d.bill_status} {d.bill_id&&<button className="small ghost ml" onClick={()=>window.open(`/print/bill/${d.bill_id}`,"_blank")}>Print Bill</button>}</div>}
-          </div>
-          <div className="finance-actions">
-            {canBill&&status==="FREE_FOLLOWUP_ELIGIBLE"&&d.entitlement_id&&<button onClick={()=>useFree(v.visit_id,d.entitlement_id!)} disabled={busy===`free-${v.visit_id}`}>Use Free Follow-Up</button>}
-            {canBill&&status==="PAID_CONSULTATION_REQUIRED"&&d.amount&&<button onClick={()=>createBill(v.visit_id)} disabled={busy===`bill-${v.visit_id}`}>Create Bill</button>}
-            {canBill&&status==="PAID_CONSULTATION_REQUIRED"&&!d.amount&&<span className="warning-text">Consultation fee not configured</span>}
-            {canBill&&status==="BILL_DRAFT"&&d.bill_id&&<button onClick={()=>finalizeBill(v.visit_id,d.bill_id!)} disabled={busy===`final-${v.visit_id}`}>Finalize Bill</button>}
-            {canPay&&["BILL_FINALIZED","BILL_PARTIALLY_PAID"].includes(status)&&d.bill_id&&<div className="payment-box">
-              <select value={paymentMode[v.visit_id]||setup?.payment_modes[0]?.id||""} onChange={e=>setPaymentMode(x=>({...x,[v.visit_id]:e.target.value}))}>{setup?.payment_modes.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select>
-              <input type="number" step="0.01" min="0.01" value={paymentAmount[v.visit_id]??d.balance??""} onChange={e=>setPaymentAmount(x=>({...x,[v.visit_id]:e.target.value}))}/>
-              <button onClick={()=>pay(v,d)} disabled={busy===`pay-${v.visit_id}`}>Receive Payment</button>
-            </div>}
-            {canComplimentary&&!cleared&&!["BILL_FINALIZED","BILL_PARTIALLY_PAID","BILL_PAID"].includes(status)&&<button className="secondary" onClick={()=>makeComplimentary(v.visit_id)} disabled={busy===`comp-${v.visit_id}`}>Doctor Complimentary</button>}
-          </div>
-        </div>
-      })}
-    </div>
-  </>;
+ const [meta,setMeta]=useState<Bootstrap|null>(null),[setup,setSetup]=useState<FinanceSetup|null>(null),[me,setMe]=useState<Me|null>(null);
+ const [rows,setRows]=useState<Visit[]>([]),[decisions,setDecisions]=useState<Record<string,FinanceDecision>>({}),[report,setReport]=useState<DailyFinance|null>(null);
+ const [date,setDate]=useState(indiaDate()),[branch,setBranch]=useState(''),[doctor,setDoctor]=useState(''),[offset,setOffset]=useState(0),[focus,setFocus]=useState('');
+ const [assignments,setAssignments]=useState<Record<string,string>>({});
+ const [hasNext,setHasNext]=useState(false);
+ const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[confirmed,setConfirmed]=useState<Record<string,boolean>>({});
+ const [amounts,setAmounts]=useState<Record<string,string>>({}),[modes,setModes]=useState<Record<string,string>>({}),[pending,setPending]=useState<Record<string,Pending>>({});
+ const saving=useRef(false),sequence=useRef(0);
+ const [fee,setFee]=useState({amount:'',branch:'',doctor:'',from:indiaDate()}),[policy,setPolicy]=useState({days:'10',uses:'1',from:indiaDate()});
+ const can=(p:string)=>!!me?.permissions.includes(p);
+ function key(bill:string){return `aastha-payment-${me?.user_id}-${bill}`}
+ useEffect(()=>{const id=new URLSearchParams(window.location.search).get('visit')||'';setFocus(id);load(0,id)},[]);
+ async function load(start=0,visitFocus=focus){const current=++sequence.current;setLoading(true);setError('');
+  try{const [b,s,u]=await Promise.all([apiFetch<Bootstrap>('/meta/bootstrap'),apiFetch<FinanceSetup>('/consultation-finance/setup'),apiFetch<Me>('/auth/me')]);
+   const q=new URLSearchParams({on_date:date,limit:'100',offset:String(start)});if(branch)q.set('branch_id',branch);if(doctor)q.set('doctor_id',doctor);
+   const all=visitFocus?[await apiFetch<Visit>(`/visits/${visitFocus}`)]:await apiFetch<Visit[]>(`/visits?${q}`);
+   const eligible=all.filter(v=>['CONSULTATION','FOLLOW_UP'].includes(v.visit_type_code||''));
+   const pairs=await Promise.all(eligible.map(async v=>[v.visit_id,await apiFetch<FinanceDecision>(`/consultation-finance/visits/${v.visit_id}/decision`)] as const));
+   const rq=new URLSearchParams({on_date:date});if(branch)rq.set('branch_id',branch);if(doctor)rq.set('doctor_id',doctor);
+   const summary=await apiFetch<DailyFinance>(`/consultation-finance/reports/daily?${rq}`);
+   if(current!==sequence.current)return;
+   setMeta(b);setSetup(s);setMe(u);setRows(eligible);setHasNext(all.length===100);setDecisions(Object.fromEntries(pairs));setReport(summary);setOffset(start);setConfirmed({});
+   const recovery:Record<string,Pending>={};for(const [,d] of pairs){if(d.bill_id){const cached=sessionStorage.getItem(`aastha-payment-${u.user_id}-${d.bill_id}`);if(cached){try{recovery[d.bill_id]=JSON.parse(cached)}catch{sessionStorage.removeItem(`aastha-payment-${u.user_id}-${d.bill_id}`)}}}}setPending(recovery);
+  }catch(e){setError(e instanceof Error?e.message:'Unable to load finance')}finally{if(current===sequence.current)setLoading(false)}
+ }
+ async function refresh(v:string){const d=await apiFetch<FinanceDecision>(`/consultation-finance/visits/${v}/decision`);setDecisions(old=>({...old,[v]:d}));setConfirmed(old=>({...old,[v]:false}));const q=new URLSearchParams({on_date:date});if(branch)q.set('branch_id',branch);if(doctor)q.set('doctor_id',doctor);setReport(await apiFetch<DailyFinance>(`/consultation-finance/reports/daily?${q}`))}
+ async function act(fn:()=>Promise<unknown>,message:string,visit?:string){if(saving.current)return;saving.current=true;setBusy(true);setError('');setNotice('');try{await fn();setNotice(message);if(visit)await refresh(visit);else await load()}catch(e){setError(e instanceof Error?e.message:'Action could not be confirmed. Refresh and review before retrying')}finally{saving.current=false;setBusy(false)}}
+ const identity=(d:FinanceDecision)=>({identity_confirmed:!!confirmed[d.visit_id],patient_row_version:d.patient_row_version});
+ async function pay(v:Visit,d:FinanceDecision){if(saving.current||!d.bill_id)return;const old=pending[d.bill_id];if(!old&&!confirmed[v.visit_id])return;
+  const payload:Pending=old||{consultation_bill_id:d.bill_id,amount:amounts[v.visit_id]??d.balance??'',payment_mode_id:modes[v.visit_id]||'',branch_id:v.branch_id,payment_request_id:crypto.randomUUID(),expected_bill_row_version:d.bill_row_version!,...identity(d)};
+  if(!payload.payment_mode_id||Number(payload.amount)<=0){setError('Choose a payment mode and a positive amount');return}
+  saving.current=true;setBusy(true);setError('');setNotice('');
+  try{sessionStorage.setItem(key(d.bill_id),JSON.stringify(payload));setPending(p=>({...p,[d.bill_id!]:payload}));
+   const p=await apiFetch<ConsultationPayment>('/consultation-finance/payments',{method:'POST',body:JSON.stringify(payload)});
+   sessionStorage.removeItem(key(d.bill_id));setPending(old=>{const next={...old};delete next[d.bill_id!];return next});setAmounts(old=>{const next={...old};delete next[v.visit_id];return next});
+   setNotice(`Payment saved. Receipt: ${p.receipt_number||p.payment_id}.`);await refresh(v.visit_id);
+  }catch(e){const status=(e as Error&{status?:number}).status;if(status&&status>=400&&status<500){sessionStorage.removeItem(key(d.bill_id));setPending(old=>{const next={...old};delete next[d.bill_id!];return next})}
+   setError((e instanceof Error?e.message:'Payment response was interrupted')+(status&&status<500?' — Refresh and review the bill before trying again.':' — Use Recover Payment below. The original request is retained to prevent collecting twice.'));
+  }finally{saving.current=false;setBusy(false)}
+ }
+ const labels:Record<string,string>={PAID_CONSULTATION_REQUIRED:'Payment required',FREE_FOLLOWUP_ELIGIBLE:'Free follow-up available',BILL_DRAFT:'Draft bill',BILL_FINALIZED:'Awaiting payment',BILL_PARTIALLY_PAID:'Part payment received',BILL_VOIDED:'Bill voided — Admin review required',CLEARED:'Cleared'};
+ return <><div className="header"><div><div className="eyebrow">CONSULTATION BILLING</div><h1 className="page-title">Consultation Finance</h1><p className="muted">Verify the Patient, review eligibility, then record the collection.</p></div><button disabled={busy||loading} onClick={()=>load()}>Refresh</button></div>
+ {error&&<div role="alert" className="alert danger-box">{error}</div>}{notice&&<div role="status" className="alert">{notice}</div>}
+ <div className="toolbar"><label>Date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label><label>Branch<select aria-label="Branch filter" value={branch} onChange={e=>setBranch(e.target.value)}><option value="">All allowed branches</option>{meta?.branches.map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><label>Doctor<select aria-label="Doctor filter" value={doctor} onChange={e=>setDoctor(e.target.value)}><option value="">All doctors</option>{meta?.doctors.map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label><button disabled={busy||loading} onClick={()=>{setFocus('');load(0,'')}}>Apply filters</button></div>
+ {focus&&<p>Showing the selected Visit. Apply filters to return to the full daily queue.</p>}
+ <div className="grid"><div className="card">Consultation Visits <b>{report?.total_consultation_visits??'—'}</b></div><div className="card">Paid / Free / Complimentary <b>{report?`${report.paid_consultations} / ${report.free_followups} / ${report.complimentary_consultations}`:'—'}</b></div><div className="card">Collected <b>{money(report?.total_collection)}</b><p className="muted">Cash {money(report?.cash)} · UPI {money(report?.upi)} · Card {money(report?.card)} · Other {money(report?.other)}</p></div></div>
+ <p className="muted">{setup?.active_policy?`Current policy: ${setup.active_policy.free_followup_window_days} days, maximum ${setup.active_policy.max_free_followups} free follow-up(s) per qualifying paid consultation. Existing entitlements retain their original policy.`:'No follow-up policy configured.'}</p>
+ {can('FINANCE_CORRECT')&&<details className="card"><summary>Fee and follow-up configuration</summary><h3>Consultation fee</h3><div className="form-grid"><label>Fee amount<input type="number" min="0.01" step="0.01" value={fee.amount} onChange={e=>setFee({...fee,amount:e.target.value})}/></label><label>Fee branch<select value={fee.branch} onChange={e=>setFee({...fee,branch:e.target.value})}><option value="">All branches</option>{meta?.branches.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Fee doctor<select value={fee.doctor} onChange={e=>setFee({...fee,doctor:e.target.value})}><option value="">All doctors</option>{meta?.doctors.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Fee effective from<input type="date" value={fee.from} onChange={e=>setFee({...fee,from:e.target.value})}/></label></div><button disabled={busy||!fee.amount} onClick={()=>act(()=>apiFetch('/consultation-finance/fees',{method:'POST',body:JSON.stringify({service_id:meta?.services.find(x=>x.code==='CONSULT')?.id,amount:fee.amount,branch_id:fee.branch||null,doctor_id:fee.doctor||null,effective_from:fee.from})}),'Fee version saved. Existing bills retain their saved amount.')}>Save fee version</button>
+ <p>Versions: {setup?.fee_versions.filter(x=>x.active).map(x=>`${money(x.amount)} from ${x.effective_from}`).join(' · ')||'None'}</p><h3>Follow-up policy</h3><div className="form-grid"><label>Window days<input type="number" min="0" max="365" value={policy.days} onChange={e=>setPolicy({...policy,days:e.target.value})}/></label><label>Maximum free uses<input type="number" min="0" max="20" value={policy.uses} onChange={e=>setPolicy({...policy,uses:e.target.value})}/></label><label>Policy effective from<input type="date" value={policy.from} onChange={e=>setPolicy({...policy,from:e.target.value})}/></label></div><button disabled={busy} onClick={()=>act(()=>apiFetch('/consultation-finance/policies',{method:'POST',body:JSON.stringify({name:'Clinic follow-up policy',free_followup_window_days:Number(policy.days),max_free_followups:Number(policy.uses),effective_from:policy.from})}),'Follow-up policy version saved.')}>Save policy version</button></details>}
+ <h2>Consultation queue</h2>{loading&&<p>Loading…</p>}{!loading&&!rows.length&&<p>No Consultation/Follow-Up Visits match these filters.</p>}
+ {rows.map(v=>{const d=decisions[v.visit_id];if(!d)return null;const recovery=d.bill_id?pending[d.bill_id]:undefined;return <section className="card" style={{marginBottom:14}} aria-label={`Finance ${v.patient_name}`} key={v.visit_id}>
+ <h3>{d.patient_name}</h3><p><b>{d.uhid}</b> · {d.patient_age??'Age unknown'} · {d.patient_gender||'Gender unknown'}</p><p className="muted">{v.visit_type} · {v.branch} · {v.doctor||'Doctor not assigned'} · {dt(v.checkin_at)}</p><p><b>{labels[d.status]||d.status}</b>{d.clearance_type?` · ${d.clearance_type.replace(/_/g,' ')}`:''}</p>
+ {d.valid_until&&d.status==='FREE_FOLLOWUP_ELIGIBLE'&&<p>Free follow-up valid through {dt(d.valid_until)}.</p>}{d.amount&&<p>Bill/fee {money(d.amount)} · Received {money(d.paid_amount)} · Balance {money(d.balance)}</p>}
+ {!v.doctor_id&&<div><p>Assign the consulting Doctor before billing.</p>{can('VISIT_EDIT')&&<div className="row"><select aria-label={`Assign Doctor ${v.visit_id}`} value={assignments[v.visit_id]||''} onChange={e=>setAssignments(x=>({...x,[v.visit_id]:e.target.value}))}><option value="">Choose consulting Doctor</option>{meta?.doctors.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><button disabled={busy||!assignments[v.visit_id]} onClick={()=>act(()=>apiFetch(`/visits/${v.visit_id}/doctor`,{method:'PATCH',body:JSON.stringify({doctor_id:assignments[v.visit_id],row_version:v.row_version,reason:'Consulting Doctor verified at Reception'})}),'Consulting Doctor assigned.')}>Assign Doctor</button></div>}</div>}
+ {d.bill_number&&<p>Bill: <b>{d.bill_number}</b> · {d.bill_status} · <a href={`/print/bill/${d.bill_id}`} target="_blank" rel="noreferrer">Print Bill</a></p>}
+ {d.status!=='CLEARED'&&<label className="checkline"><input type="checkbox" disabled={busy||!!recovery} checked={!!confirmed[v.visit_id]} onChange={e=>setConfirmed(x=>({...x,[v.visit_id]:e.target.checked}))}/>I confirmed Name + Age/Gender + UHID for this Patient.</label>}
+ <div className="row" style={{marginTop:12}}>
+ {can('CONSULTATION_BILL_CREATE')&&d.status==='PAID_CONSULTATION_REQUIRED'&&v.doctor_id&&d.amount&&<button disabled={busy||!confirmed[v.visit_id]} onClick={()=>act(()=>apiFetch('/consultation-finance/bills/from-visit',{method:'POST',body:JSON.stringify({visit_id:v.visit_id,...identity(d)})}),'Bill draft saved.',v.visit_id)}>Create Bill</button>}
+ {can('CONSULTATION_BILL_CREATE')&&d.status==='FREE_FOLLOWUP_ELIGIBLE'&&<button disabled={busy||!confirmed[v.visit_id]} onClick={()=>act(()=>apiFetch(`/consultation-finance/visits/${v.visit_id}/free-followup`,{method:'POST',body:JSON.stringify({entitlement_id:d.entitlement_id,...identity(d)})}),'Free follow-up saved.',v.visit_id)}>Use Free Follow-Up</button>}
+ {can('CONSULTATION_BILL_CREATE')&&d.status==='BILL_DRAFT'&&<button disabled={busy||!confirmed[v.visit_id]} onClick={()=>act(()=>apiFetch(`/consultation-finance/bills/${d.bill_id}/finalize`,{method:'POST',body:JSON.stringify({expected_row_version:d.bill_row_version})}),'Bill finalized.',v.visit_id)}>Finalize Bill</button>}
+ {can('CONSULTATION_COMPLIMENTARY')&&!['CLEARED','BILL_FINALIZED','BILL_PARTIALLY_PAID','BILL_PAID'].includes(d.status)&&<button className="secondary" disabled={busy||!confirmed[v.visit_id]} onClick={()=>act(()=>apiFetch('/consultation-finance/complimentary',{method:'POST',body:JSON.stringify({visit_id:v.visit_id})}),'Doctor complimentary saved.',v.visit_id)}>Doctor Complimentary</button>}
+ {can('CONSULTATION_PAYMENT_CREATE')&&(['BILL_FINALIZED','BILL_PARTIALLY_PAID'].includes(d.status)||recovery)&&<div className="payment-box"><label>Payment mode<select aria-label={`Payment mode ${v.visit_id}`} disabled={busy||!!recovery} value={recovery?.payment_mode_id||modes[v.visit_id]||''} onChange={e=>setModes(x=>({...x,[v.visit_id]:e.target.value}))}><option value="">Choose mode</option>{setup?.payment_modes.map(m=><option value={m.id} key={m.id}>{m.name}</option>)}</select></label><label>Payment amount<input aria-label={`Payment amount ${v.visit_id}`} disabled={busy||!!recovery} type="number" min="0.01" step="0.01" value={recovery?.amount||(amounts[v.visit_id]??d.balance??'')} onChange={e=>setAmounts(x=>({...x,[v.visit_id]:e.target.value}))}/></label><button disabled={busy||(!recovery&&!confirmed[v.visit_id])} onClick={()=>pay(v,d)}>{recovery?'Recover Payment':'Receive Payment'}</button></div>}
+ </div>{d.status==='PAID_CONSULTATION_REQUIRED'&&!d.amount&&<p>Admin must configure a consultation fee for this Doctor, branch and Visit date.</p>}
+ {!!d.payments.length&&<div><h4>Saved receipts</h4>{d.payments.map(p=><p key={p.payment_id}>{p.receipt_number||p.payment_id} · {money(p.amount)} · {p.mode} · <a target="_blank" rel="noreferrer" href={`/print/receipt/${p.payment_id}`}>Print Receipt</a></p>)}</div>}
+ </section>})}
+ {!focus&&<div className="row"><button disabled={busy||loading||offset===0} onClick={()=>load(Math.max(0,offset-100))}>Previous</button><span>Queue page {offset/100+1} (up to 100 Visits)</span><button disabled={busy||loading||!hasNext} onClick={()=>load(offset+100)}>Next</button></div>}
+ </>
 }

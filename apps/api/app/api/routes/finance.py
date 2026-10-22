@@ -20,7 +20,7 @@ from app.models.finance import (
 )
 from app.models.patient import Patient, PatientContact
 from app.schemas.finance import (
-    BillOut,
+    BillOut, BillFinalizeCreate, FreeFollowupCreate, ConsultationPolicyCreate,
     BillVoidRequest,
     ChangeRequestCreate,
     ChangeRequestResolve,
@@ -49,7 +49,7 @@ from app.services.consultation import (
     get_eligibility,
     record_payment,
     visit_decision,
-    void_bill,
+    void_bill, lock_context, verify_identity, _active_policy, IST,
 )
 from app.services.patients import current_fiscal_year
 
@@ -72,20 +72,11 @@ def _get_owned_visit(db: Session, visit_id: uuid.UUID, organization_id: uuid.UUI
 @router.get("/setup", response_model=FinanceSetupOut)
 def setup(
     db: Session = Depends(get_db),
-    user: User = Depends(current_user),
+    user: User = Depends(require_permission("CONSULTATION_FINANCE_VIEW")),
 ):
     modes = list(db.scalars(select(PaymentMode).where(PaymentMode.active.is_(True)).order_by(PaymentMode.name)).all())
-    today = datetime.now().date()
-    policy = db.scalar(
-        select(ConsultationPolicyVersion)
-        .where(
-            ConsultationPolicyVersion.active.is_(True),
-            ConsultationPolicyVersion.effective_from <= today,
-            (ConsultationPolicyVersion.effective_until.is_(None) | (ConsultationPolicyVersion.effective_until >= today)),
-        )
-        .order_by(ConsultationPolicyVersion.effective_from.desc())
-        .limit(1)
-    )
+    today = datetime.now(IST).date()
+    policy = _active_policy(db,on_date=today,organization_id=user.organization_id)
     service_ids = list(db.scalars(select(Service.service_id).where(Service.organization_id == user.organization_id)).all())
     fees = [] if not service_ids else list(
         db.scalars(
@@ -102,6 +93,7 @@ def setup(
             "free_followup_window_days": policy.free_followup_window_days,
             "max_free_followups": policy.max_free_followups,
             "effective_from": policy.effective_from.isoformat(),
+            "organization_id":str(policy.organization_id) if policy.organization_id else None,
         },
         "fee_versions": [{
             "id": str(x.fee_version_id),
@@ -119,7 +111,7 @@ def setup(
 @router.get("/fees", response_model=list[ConsultationFeeOut])
 def list_fees(
     db: Session = Depends(get_db),
-    user: User = Depends(current_user),
+    user: User = Depends(require_permission("CONSULTATION_FINANCE_VIEW")),
 ):
     service_ids = list(db.scalars(select(Service.service_id).where(Service.organization_id == user.organization_id)).all())
     if not service_ids:
@@ -133,14 +125,14 @@ def create_fee(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("FINANCE_CORRECT")),
 ):
-    service = db.get(Service, payload.service_id)
-    if not service or service.organization_id != user.organization_id or service.clinical_type != "CONSULTATION":
+    service = db.scalar(select(Service).where(Service.service_id == payload.service_id).with_for_update().execution_options(populate_existing=True))
+    if not service or service.organization_id != user.organization_id or service.clinical_type != "CONSULTATION" or not service.active:
         raise HTTPException(400, "Consultation service not found")
     if payload.effective_until and payload.effective_until < payload.effective_from:
         raise HTTPException(400, "effective_until cannot be before effective_from")
     if payload.doctor_id:
         doctor = db.get(Doctor, payload.doctor_id)
-        if not doctor or doctor.organization_id != user.organization_id:
+        if not doctor or doctor.organization_id != user.organization_id or not doctor.active:
             raise HTTPException(400, "Doctor not found")
     if payload.branch_id:
         ensure_branch_access(db, user, payload.branch_id)
@@ -157,7 +149,11 @@ def create_fee(
             old.effective_until = payload.effective_from - timedelta(days=1)
         elif old.effective_from == payload.effective_from:
             old.active = False
-    fee = ConsultationFeeVersion(**payload.model_dump(), active=True)
+    future = [old.effective_from for old in prior if old.effective_from > payload.effective_from]
+    until = payload.effective_until
+    if future and (until is None or until >= min(future)):
+        until = min(future) - timedelta(days=1)
+    fee = ConsultationFeeVersion(**{**payload.model_dump(),"effective_until":until}, active=True)
     db.add(fee)
     db.flush()
     log_audit(
@@ -171,6 +167,26 @@ def create_fee(
     )
     db.commit(); db.refresh(fee)
     return fee
+
+
+@router.post("/policies")
+def create_policy(payload: ConsultationPolicyCreate, db: Session = Depends(get_db), user: User = Depends(require_permission("FINANCE_CORRECT"))):
+    db.scalar(select(Organization).where(Organization.organization_id == user.organization_id).with_for_update())
+    prior = list(db.scalars(select(ConsultationPolicyVersion).where(
+        ConsultationPolicyVersion.organization_id == user.organization_id,ConsultationPolicyVersion.active.is_(True)).with_for_update().execution_options(populate_existing=True)).all())
+    until = None
+    for old in prior:
+        if old.effective_from == payload.effective_from: old.active=False;old.row_version+=1
+        elif old.effective_from < payload.effective_from and (old.effective_until is None or old.effective_until >= payload.effective_from):
+            old.effective_until=payload.effective_from-timedelta(days=1);old.row_version+=1
+        elif old.effective_from > payload.effective_from:
+            until=min(until or old.effective_from,old.effective_from-timedelta(days=1))
+    item=ConsultationPolicyVersion(**payload.model_dump(),organization_id=user.organization_id,effective_until=until)
+    db.add(item);db.flush()
+    log_audit(db,organization_id=user.organization_id,entity_type="CONSULTATION_POLICY",entity_id=item.policy_version_id,
+        action="POLICY_VERSION_CREATED",actor_user_id=user.user_id,after_data=payload.model_dump(mode="json"))
+    db.commit()
+    return {"policy_version_id":item.policy_version_id}
 
 
 @router.get("/eligibility/{patient_id}", response_model=ConsultationEligibilityOut)
@@ -204,22 +220,25 @@ def decision(
 @router.post("/visits/{visit_id}/free-followup")
 def clear_free_followup(
     visit_id: uuid.UUID,
-    entitlement_id: uuid.UUID,
+    payload: FreeFollowupCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("CONSULTATION_BILL_CREATE")),
 ):
     visit, patient = _get_owned_visit(db, visit_id, user.organization_id)
     ensure_branch_access(db, user, visit.branch_id)
-    status, ent = get_eligibility(db, patient_id=patient.patient_id, at=visit.checkin_at)
-    if status != "FREE_FOLLOWUP_ELIGIBLE" or not ent or ent.entitlement_id != entitlement_id:
-        db.rollback()
-        raise HTTPException(409, "Free follow-up entitlement is not currently valid")
     try:
-        clearance = create_free_followup_clearance(db, visit_id=visit.visit_id, patient_id=patient.patient_id, entitlement_id=entitlement_id)
+        visit,patient=lock_context(db,visit_id=visit_id)
+        verify_identity(patient,payload)
+        from app.models.finance import ConsultationClearance
+        existing=db.scalar(select(ConsultationClearance).where(ConsultationClearance.visit_id==visit_id))
+        clearance=create_free_followup_clearance(db,visit_id=visit_id,patient_id=patient.patient_id,entitlement_id=payload.entitlement_id)
+        if not existing:
+            log_audit(db,organization_id=user.organization_id,entity_type="CONSULTATION_VISIT",entity_id=visit_id,
+                action="FREE_FOLLOWUP_USED",actor_user_id=user.user_id,after_data={"entitlement_id":str(payload.entitlement_id),"clearance_id":str(clearance.clearance_id)})
         db.commit()
-    except Exception as exc:
-        db.rollback(); raise HTTPException(409, str(exc)) from exc
-    return {"clearance_id": clearance.clearance_id, "clearance_type": clearance.clearance_type, "status": clearance.status}
+    except ValueError as exc:
+        db.rollback();raise HTTPException(409,str(exc)) from exc
+    return {"clearance_id":clearance.clearance_id,"clearance_type":clearance.clearance_type,"status":clearance.status}
 
 
 @router.post("/bills/from-visit", response_model=BillOut)
@@ -231,6 +250,8 @@ def draft_from_visit(
     visit, patient = _get_owned_visit(db, payload.visit_id, user.organization_id)
     ensure_branch_access(db, user, visit.branch_id)
     try:
+        visit,patient=lock_context(db,visit_id=visit.visit_id)
+        verify_identity(patient,payload)
         bill = create_bill_from_visit(db, visit=visit, patient=patient, organization_id=user.organization_id, actor_user_id=user.user_id)
         db.commit(); db.refresh(bill)
     except Exception as exc:
@@ -253,6 +274,8 @@ def draft_bill(
     if not visit.doctor_id or visit.doctor_id != payload.doctor_id:
         raise HTTPException(409, "Bill Doctor must match assigned Visit Doctor")
     try:
+        visit,patient=lock_context(db,visit_id=visit.visit_id)
+        verify_identity(patient,payload)
         bill = create_bill_draft(db, payload=payload, actor_user_id=user.user_id)
         db.commit(); db.refresh(bill)
     except Exception as exc:
@@ -263,7 +286,7 @@ def draft_bill(
 @router.post("/bills/{bill_id}/finalize", response_model=BillOut)
 def finalize(
     bill_id: uuid.UUID,
-    fiscal_year: str | None = Query(default=None),
+    payload: BillFinalizeCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("CONSULTATION_BILL_CREATE")),
 ):
@@ -275,7 +298,11 @@ def finalize(
         raise HTTPException(404, "Bill not found")
     ensure_branch_access(db, user, bill.branch_id)
     try:
-        finalize_bill(db, bill=bill, organization_id=user.organization_id, fiscal_year=fiscal_year or current_fiscal_year(), actor_user_id=user.user_id)
+        lock_context(db,visit_id=bill.visit_id)
+        bill=db.scalar(select(ConsultationBill).where(ConsultationBill.consultation_bill_id==bill_id).with_for_update().execution_options(populate_existing=True))
+        if bill.bill_status=="DRAFT" and bill.row_version!=payload.expected_row_version:
+            raise ValueError("Bill changed. Refresh before finalizing")
+        finalize_bill(db, bill=bill, organization_id=user.organization_id, fiscal_year=current_fiscal_year(), actor_user_id=user.user_id)
         db.commit(); db.refresh(bill)
     except Exception as exc:
         db.rollback(); raise HTTPException(409, str(exc)) from exc
@@ -307,10 +334,11 @@ def payment(
 def complimentary(
     payload: ComplimentaryCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(current_user),
+    user: User = Depends(require_permission("CONSULTATION_FINANCE_VIEW")),
 ):
     visit, patient = _get_owned_visit(db, payload.visit_id, user.organization_id)
-    doctor = db.scalar(select(Doctor).where(Doctor.user_id == user.user_id, Doctor.organization_id == user.organization_id))
+    ensure_branch_access(db,user,visit.branch_id)
+    doctor = db.scalar(select(Doctor).where(Doctor.user_id == user.user_id, Doctor.organization_id == user.organization_id,Doctor.active.is_(True)))
     if not doctor:
         raise HTTPException(403, "Doctor profile is required for complimentary authorization")
     try:
@@ -444,18 +472,14 @@ def daily_report(
     branch_id: uuid.UUID | None = None,
     doctor_id: uuid.UUID | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(current_user),
+    user: User = Depends(require_permission("CONSULTATION_FINANCE_VIEW")),
 ):
     local_date = on_date or datetime.now(ZoneInfo("Asia/Kolkata")).date()
     allowed = allowed_branch_ids(db, user)
     if branch_id:
         ensure_branch_access(db, user, branch_id)
-    elif allowed is not None:
-        if len(allowed) == 1:
-            branch_id = next(iter(allowed))
-        else:
-            raise HTTPException(400, "Select an authorized branch for this report")
-    return daily_finance_report(db, on_date=local_date, organization_id=user.organization_id, branch_id=branch_id, doctor_id=doctor_id)
+    return daily_finance_report(db, on_date=local_date, organization_id=user.organization_id, branch_id=branch_id, doctor_id=doctor_id,branch_ids=allowed)
+
 
 
 @router.get("/bills/{bill_id}/document")
@@ -469,6 +493,7 @@ def bill_document(
     if not bill or not patient or patient.organization_id != user.organization_id:
         raise HTTPException(404, "Bill not found")
     ensure_branch_access(db, user, bill.branch_id)
+    if not bill.bill_number: raise HTTPException(409,"Finalize this bill before printing")
     branch = db.get(Branch, bill.branch_id)
     doctor = db.get(Doctor, bill.doctor_id)
     org = db.get(Organization, user.organization_id)
@@ -504,7 +529,7 @@ def receipt_document(
     total_paid = db.scalar(select(func.coalesce(func.sum(ConsultationPayment.amount),0)).where(ConsultationPayment.consultation_bill_id==bill.consultation_bill_id,ConsultationPayment.payment_status=="COMPLETED"))
     return {
         "document_type":"CONSULTATION_RECEIPT","organization":org.organization_name if org else "Aastha",
-        "receipt_id":payment.payment_id,"payment_date":payment.received_at,"bill_number":bill.bill_number,
+        "receipt_id":payment.payment_id,"receipt_number":payment.receipt_number,"payment_date":payment.received_at,"bill_number":bill.bill_number,
         "patient":{"patient_id":patient.patient_id,"uhid":patient.uhid,"name":patient.full_name,"mobile":mobile},
         "branch":{"id":payment.branch_id,"name":branch.branch_name if branch else None,"address":branch.address if branch else None,"phone":branch.phone if branch else None},
         "doctor":{"id":bill.doctor_id,"name":doctor.doctor_name if doctor else None},
