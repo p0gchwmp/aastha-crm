@@ -70,3 +70,6 @@ def health_ready(response: Response):
 @app.get("/health")
 def health_compat():
     return {"status": "ok"}
+
+from app.api.routes import doctor_consultations
+app.include_router(doctor_consultations.router, prefix="/api/v1")

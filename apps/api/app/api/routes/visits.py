@@ -156,6 +156,9 @@ def assign_doctor(visit_id: uuid.UUID, payload: VisitDoctorAssign,
     if visit.appointment_id:
         appointment=db.get(Appointment,visit.appointment_id)
         if appointment and appointment.doctor_id!=payload.doctor_id: raise HTTPException(409,"Doctor must match the linked appointment")
+    from app.models.clinical import ConsultationNote
+    if db.scalar(select(ConsultationNote).where(ConsultationNote.visit_id==visit_id)):
+        raise HTTPException(409,"Doctor cannot change after clinical consultation has started")
     before=str(visit.doctor_id) if visit.doctor_id else None
     visit.doctor_id=payload.doctor_id;visit.updated_by=user.user_id;visit.row_version+=1
     log_audit(db,organization_id=user.organization_id,entity_type="VISIT",entity_id=visit_id,action="VISIT_DOCTOR_ASSIGNED",actor_user_id=user.user_id,before_data={"doctor_id":before},after_data={"doctor_id":str(payload.doctor_id)},reason=payload.reason.strip())
