@@ -24,7 +24,7 @@ test('Reception bills, recovers an interrupted collection, prints receipts and u
  await row.getByRole('checkbox').check();await row.getByLabel('Payment mode '+v.visit_id,{exact:true}).selectOption({label:'Cash'});await row.getByLabel('Payment amount '+v.visit_id,{exact:true}).fill('200');
  let interrupted=false;
  await page.route('**/consultation-finance/payments',async route=>{if(!interrupted&&route.request().method()==='POST'){interrupted=true;const response=await route.fetch();expect(response.ok()).toBeTruthy();await route.abort('failed')}else await route.continue()});
- await row.getByRole('button',{name:'Receive Payment',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Recover Payment');
+ await row.getByRole('button',{name:'Receive Payment',exact:true}).click();await expect(page.getByRole('alert').filter({hasText:'Recover Payment'})).toContainText('Recover Payment');
  await page.reload();await expect(row.getByRole('button',{name:'Recover Payment',exact:true})).toBeVisible();await row.getByRole('button',{name:'Recover Payment',exact:true}).click();
  await expect(page.getByRole('status')).toContainText('Payment saved. Receipt:');await expect(row.getByRole('link',{name:'Print Receipt',exact:true})).toHaveCount(1);
  await row.getByRole('checkbox').check();await row.getByLabel('Payment mode '+v.visit_id,{exact:true}).selectOption({label:'Upi'});await row.getByLabel('Payment amount '+v.visit_id,{exact:true}).fill('300');await row.getByRole('button',{name:'Receive Payment',exact:true}).click();

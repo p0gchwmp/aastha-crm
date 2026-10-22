@@ -207,3 +207,17 @@ def test_unassigned_doctor_requires_version_and_locks_after_billing(finance):
     updated=r.json();assert updated['doctor_id']==str(doctor.doctor_id)
     draft(updated)
     assert c.patch(url,headers=reception,json={**payload,'row_version':updated['row_version']}).status_code==409
+
+
+def test_followup_expiry_boundary_and_foreign_patient(finance):
+    (c,db,branches,users,admin,login),reception,visit,decision,draft,finalize,payment,svc,doctor,patient=finance
+    from app.models.patient import Patient
+    v=visit();b=finalize(v);assert c.post(PREFIX+'/payments',headers=reception,json=payment(v)).status_code==200
+    ent=db.scalar(select(FollowupEntitlement).where(FollowupEntitlement.source_bill_id==uuid.UUID(b['consultation_bill_id'])))
+    assert engine.get_eligibility(db,patient_id=uuid.UUID(patient['patient_id']),at=ent.valid_until)[0]=='FREE_FOLLOWUP_ELIGIBLE'
+    assert engine.get_eligibility(db,patient_id=uuid.UUID(patient['patient_id']),at=ent.valid_until+timedelta(microseconds=1))[0]=='PAID_CONSULTATION_REQUIRED'
+    other=Patient(organization_id=users['ADMIN'].organization_id,registration_branch_id=branches[0].branch_id,full_name='Fictional distinct identity',uhid='TEST-'+uuid.uuid4().hex);db.add(other);db.commit()
+    other_visit=visit(patient_id=str(other.patient_id),patient_row_version=other.row_version)
+    with pytest.raises(ValueError,match='different Patient'):
+        engine.consume_entitlement(db,entitlement_id=ent.entitlement_id,visit_id=uuid.UUID(other_visit['visit_id']),at=STAMP+timedelta(days=1))
+    assert engine._active_policy(db,on_date=date(2030,1,8),organization_id=branches[2].organization_id) is None
