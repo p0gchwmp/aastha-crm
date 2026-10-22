@@ -1,18 +1,20 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 from app.schemas.common import ORMModel
 
 
 class VisitCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     patient_id: uuid.UUID
+    patient_row_version: int = Field(ge=1)
+    creation_request_id: uuid.UUID
     appointment_id: uuid.UUID | None = None
+    appointment_row_version: int | None = Field(default=None, ge=1)
     branch_id: uuid.UUID
     doctor_id: uuid.UUID | None = None
     visit_type_id: uuid.UUID
-    visit_status_id: uuid.UUID
-    checkin_at: datetime
-    chief_complaint_ids: list[uuid.UUID] = []
+    chief_complaint_ids: list[uuid.UUID] = Field(default_factory=list, max_length=30)
     identity_confirmed: bool = False
 
 

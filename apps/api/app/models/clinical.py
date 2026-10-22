@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin
@@ -25,7 +25,17 @@ class VisitStatus(Base):
 
 class Visit(Base, TimestampMixin):
     __tablename__ = "visits"
-    __table_args__ = {"schema": "clinical"}
+    __table_args__ = (
+        Index("uq_visit_creation_request", "created_by", "creation_request_id", unique=True),
+        Index("ix_visits_branch_checkin", "branch_id", "checkin_at"),
+        Index("ix_visits_patient_checkin", "patient_id", "checkin_at"),
+        {"schema": "clinical"},
+    )
+    creation_request_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    creation_request_hash: Mapped[str | None] = mapped_column(String(64))
+    identity_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    identity_patient_version: Mapped[int | None]
+
     visit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patient.patients.patient_id"))
     appointment_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("scheduling.appointments.appointment_id"))

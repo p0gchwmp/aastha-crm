@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.core.db import get_db
-from app.core.access import ensure_branch_access
+from app.core.access import ensure_branch_access, allowed_branch_ids
 from app.core.permissions import require_permission
 from app.models.clinical import Visit, VisitStatus, VisitType
 from app.models.core import Branch, Doctor, User
@@ -145,15 +145,14 @@ def patient_visits(
     patient = db.get(Patient, patient_id)
     if not patient or patient.organization_id != user.organization_id:
         raise HTTPException(404, "Patient not found")
-    visits = list(
-        db.scalars(
-            select(Visit)
-            .where(Visit.patient_id == patient_id)
-            .order_by(Visit.checkin_at.desc())
-            .limit(limit)
-        ).all()
-    )
-    return [_visit_summary(db, v) for v in visits]
+    allowed = allowed_branch_ids(db, user)
+    stmt = select(Visit).where(Visit.patient_id == patient_id)
+    if allowed is not None:
+        stmt = stmt.where(Visit.branch_id.in_(allowed))
+    visits = list(db.scalars(stmt.order_by(Visit.checkin_at.desc(), Visit.visit_id).limit(limit)).all())
+    from app.api.routes.visits import _serialize
+    return [_serialize(db, v) for v in visits]
+
 
 
 @router.patch("/{patient_id}", response_model=PatientDetailOut)
