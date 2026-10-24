@@ -87,10 +87,33 @@ def detail(visit_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depe
     allowed = allowed_branch_ids(db, user)
     if allowed is not None:
         stmt = stmt.where(Visit.branch_id.in_(allowed))
+    from app.api.routes.clinical_preparations import get_preparation, snapshot
+    preparation = get_preparation(db, visit_id)
+    result["preparation"] = snapshot(db, preparation)
+    from app.models.preparation import PreparationRevision
+    result["preparation_revisions"] = [{"action":r.action,"occurred_at":r.occurred_at,"snapshot":r.snapshot} for r in db.scalars(select(PreparationRevision).where(PreparationRevision.preparation_id==preparation.preparation_id).order_by(PreparationRevision.occurred_at)).all()] if preparation else []
     result["previous_visits"] = [{"visit": _serialize(db, v), "note": note_data(db.scalar(select(ConsultationNote).where(ConsultationNote.visit_id == v.visit_id)))} for v in db.scalars(stmt.order_by(Visit.checkin_at.desc()).limit(100)).all()]
     note = db.scalar(select(ConsultationNote).where(ConsultationNote.visit_id == visit_id))
     result["revisions"] = [{"action": r.action, "occurred_at": r.occurred_at, "snapshot": r.snapshot} for r in db.scalars(select(ConsultationNoteRevision).where(ConsultationNoteRevision.note_id == note.note_id).order_by(ConsultationNoteRevision.occurred_at)).all()] if note else []
     return result
+
+
+
+
+from app.api.routes.clinical_preparations import Request as PreparationReviewRequest
+
+@router.post("/{visit_id}/review-preparation")
+def review_preparation(visit_id: uuid.UUID, payload: PreparationReviewRequest, db: Session=Depends(get_db), user: User=Depends(require_permission("CONSULTATION_CLINICAL"))):
+    from app.api.routes.clinical_preparations import review
+    return review(visit_id, payload, db, user)
+
+
+from app.api.routes.clinical_preparations import ReturnRequest as PreparationReturnRequest
+
+@router.post("/{visit_id}/return-preparation")
+def return_preparation(visit_id: uuid.UUID, payload: PreparationReturnRequest, db: Session=Depends(get_db), user: User=Depends(require_permission("CONSULTATION_CLINICAL"))):
+    from app.api.routes.clinical_preparations import return_for_changes
+    return return_for_changes(visit_id, payload, db, user)
 
 
 @router.post("/{visit_id}/{action}")
@@ -126,6 +149,11 @@ def mutate(visit_id: uuid.UUID, action: str, payload: NoteAction, db: Session = 
             for key in FIELDS:
                 setattr(note, key, getattr(payload, key))
             note.row_version += 1
+        if action == "complete":
+            from app.api.routes.clinical_preparations import get_preparation
+            preparation = get_preparation(db, visit_id, True)
+            if preparation and preparation.state != "REVIEWED":
+                raise HTTPException(409, "Review the submitted Assistant preparation before completing this consultation")
         target = "COMPLETED" if action == "complete" else "IN_PROGRESS"
         next_status = db.scalar(select(VisitStatus).where(VisitStatus.code == target))
         if not next_status:

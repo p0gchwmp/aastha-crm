@@ -27,6 +27,8 @@ def overlaps(a,b):
     return a.day_of_week==b.day_of_week and a.effective_from<=(b.effective_until or date.max) and b.effective_from<=(a.effective_until or date.max) and a.start_time<b.end_time and a.end_time>b.start_time
 
 def check_overlap(db,payload,ignore=None):
+    from app.services.clinical_team import ensure_doctor_branch
+    ensure_doctor_branch(db,db.get(Doctor,payload.doctor_id),payload.branch_id)
     if not payload.active: return
     for other in db.scalars(select(DoctorSchedule).where(DoctorSchedule.doctor_id==payload.doctor_id,DoctorSchedule.active.is_(True))).all():
         if other.schedule_id!=ignore and overlaps(payload,other): raise HTTPException(409,"Doctor schedules overlap, including across branches. Disable or adjust the conflicting window first")
@@ -91,6 +93,8 @@ def list_exceptions(on_date:date|None=None,db:Session=Depends(get_db),user:User=
 @router.post("/schedule-exceptions",status_code=201)
 def create_exception(payload:ExceptionCreate,db:Session=Depends(get_db),user:User=Depends(manager)):
     ensure_branch_access(db,user,payload.branch_id);engine.lock_doctors(db,user,[payload.doctor_id])
+    from app.services.clinical_team import ensure_doctor_branch
+    ensure_doctor_branch(db,db.get(Doctor,payload.doctor_id),payload.branch_id)
     if payload.exception_type!="ADDITIONAL": protects_window(db,payload.doctor_id,payload.branch_id,payload.date,payload.start_time,payload.end_time)
     else:
         for s in db.scalars(select(DoctorSchedule).where(DoctorSchedule.doctor_id==payload.doctor_id,DoctorSchedule.active.is_(True),DoctorSchedule.day_of_week==payload.date.weekday(),DoctorSchedule.effective_from<=payload.date,(DoctorSchedule.effective_until.is_(None)|(DoctorSchedule.effective_until>=payload.date)))).all():

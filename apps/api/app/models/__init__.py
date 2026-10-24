@@ -6,3 +6,5 @@ from app.models.scheduling import *  # noqa: F401,F403
 from app.models.clinical import *  # noqa: F401,F403
 from app.models.finance import *  # noqa: F401,F403
 from app.models.integration import *  # noqa: F401,F403
+
+from app.models.preparation import *  # noqa: F401,F403
