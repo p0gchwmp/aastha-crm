@@ -64,9 +64,11 @@ def create_visit(db, *, user, payload):
     if patient.row_version != payload.patient_row_version:
         raise HTTPException(409, "Patient details changed. Reopen New Visit and verify Name + Age/Gender + UHID again")
     if payload.doctor_id:
-        doctor = db.get(Doctor, payload.doctor_id)
+        doctor = db.scalar(select(Doctor).where(Doctor.doctor_id == payload.doctor_id).with_for_update().execution_options(populate_existing=True))
         if not doctor or doctor.organization_id != user.organization_id or not doctor.active:
             raise HTTPException(400, "Active Doctor not found")
+        from app.services.clinical_team import ensure_doctor_branch
+        ensure_doctor_branch(db, doctor, payload.branch_id)
     kind = db.get(VisitType, payload.visit_type_id)
     if not kind or not kind.active:
         raise HTTPException(400, "Active Visit Type not found")

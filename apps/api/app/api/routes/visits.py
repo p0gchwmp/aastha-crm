@@ -149,10 +149,12 @@ def assign_doctor(visit_id: uuid.UUID, payload: VisitDoctorAssign,
     ensure_branch_access(db,user,visit.branch_id)
     if visit.row_version!=payload.row_version: raise HTTPException(409,"Visit changed. Refresh before assigning Doctor")
     if not payload.reason.strip(): raise HTTPException(422,"An assignment reason is required")
-    doctor=db.get(Doctor,payload.doctor_id)
+    doctor=db.scalar(select(Doctor).where(Doctor.doctor_id==payload.doctor_id).with_for_update().execution_options(populate_existing=True))
     if not doctor or doctor.organization_id!=user.organization_id or not doctor.active: raise HTTPException(400,"Active Doctor not found")
     if db.scalar(select(ConsultationBill).where(ConsultationBill.visit_id==visit_id)) or db.scalar(select(ConsultationClearance).where(ConsultationClearance.visit_id==visit_id)):
         raise HTTPException(409,"Doctor cannot change after consultation finance has started")
+    from app.services.clinical_team import ensure_doctor_branch
+    ensure_doctor_branch(db, doctor, visit.branch_id)
     if visit.appointment_id:
         appointment=db.get(Appointment,visit.appointment_id)
         if appointment and appointment.doctor_id!=payload.doctor_id: raise HTTPException(409,"Doctor must match the linked appointment")

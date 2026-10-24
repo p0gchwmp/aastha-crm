@@ -53,6 +53,10 @@ def require_open_lead(db,lead,allow_converted=False):
         raise HTTPException(409,"Reopen the existing Lead first, or explicitly select the registered Patient for a converted Lead")
 
 def available_slots(db, *, doctor_id, branch_id, day, exclude_id=None):
+    from app.services.clinical_team import ensure_doctor_branch
+    profile=db.get(Doctor,doctor_id)
+    if not profile or not profile.active: return []
+    ensure_doctor_branch(db,profile,branch_id)
     schedules=db.scalars(select(DoctorSchedule).where(DoctorSchedule.doctor_id==doctor_id,DoctorSchedule.branch_id==branch_id,DoctorSchedule.day_of_week==day.weekday(),DoctorSchedule.active.is_(True),DoctorSchedule.effective_from<=day,(DoctorSchedule.effective_until.is_(None)|(DoctorSchedule.effective_until>=day)))).all()
     exceptions=db.scalars(select(ScheduleException).where(ScheduleException.doctor_id==doctor_id,ScheduleException.branch_id==branch_id,ScheduleException.date==day,ScheduleException.exception_type!="CANCELLED")).all()
     if any(x.exception_type!="ADDITIONAL" and x.start_time is None for x in exceptions): return []

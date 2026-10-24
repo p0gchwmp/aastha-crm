@@ -73,3 +73,7 @@ def health_compat():
 
 from app.api.routes import doctor_consultations
 app.include_router(doctor_consultations.router, prefix="/api/v1")
+
+from app.api.routes import clinical_team, clinical_preparations
+app.include_router(clinical_team.router, prefix="/api/v1")
+app.include_router(clinical_preparations.router, prefix="/api/v1")
