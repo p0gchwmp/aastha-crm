@@ -10,3 +10,15 @@
 
 .modal .lead-form{grid-template-columns:repeat(2,minmax(0,1fr))}.lead-form textarea,.form-stack textarea{font:inherit;min-height:80px;padding:10px;border:1px solid #d9dbde;border-radius:10px;width:100%}
 @media(max-width:600px){.modal .lead-form{grid-template-columns:1fr}}
+
+/* Diagnosis controls stay compact despite the generic full-width input styles. */
+.diagnosis-picker{margin:20px 0;padding:18px;border:1px solid #e1e3e6;border-radius:14px;background:#fff;max-width:960px;font-size:14px;line-height:1.5}
+.diagnosis-heading{display:flex;align-items:center;gap:12px}.diagnosis-heading h3{margin:0;font-size:18px}
+.diagnosis-help{color:#62676e;font-size:13px;margin:8px 0 12px}.diagnosis-table-wrap{overflow-x:auto;margin:12px 0;border:1px solid #e5e7eb;border-radius:10px}
+.diagnosis-table{table-layout:auto}.diagnosis-table th,.diagnosis-table td{padding:12px;font-size:14px}.diagnosis-table th{font-size:12px}.diagnosis-table th:first-child{width:100%}.diagnosis-table td:first-child{overflow-wrap:anywhere}.diagnosis-table td:not(:first-child){white-space:nowrap}
+.diagnosis-category{display:block;font-size:12px;font-weight:400;color:#62676e;margin-top:3px}
+.diagnosis-primary{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.diagnosis-primary input[type=radio]{appearance:auto;display:inline-block;width:17px;min-width:17px;height:17px;padding:0;margin:0;accent-color:#17181a;flex:none}
+.diagnosis-search{margin-top:16px}.diagnosis-search>label{display:block;font-size:14px;margin-bottom:6px}.diagnosis-search>input{font-size:14px;width:100%}
+.diagnosis-results{border:1px solid #e1e3e6;border-radius:10px;padding:0 12px;max-height:340px;overflow-y:auto}.diagnosis-results ul{list-style:none;margin:0;padding:0}.diagnosis-results li{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid #eceef0}.diagnosis-results li>div{min-width:0;overflow-wrap:anywhere}.diagnosis-results button{flex:none}.diagnosis-results>p{font-size:13px}
+@media(max-width:600px){.diagnosis-picker{padding:12px}.diagnosis-table th,.diagnosis-table td{padding:8px;font-size:13px}.diagnosis-table button{padding:8px}.diagnosis-primary{font-size:12px;gap:5px}.diagnosis-results{padding:0 10px}.diagnosis-results li{gap:8px}}
