@@ -14,5 +14,5 @@ with engine.connect() as c:
         path.write_text(data)
     else:
         assert path.read_text()==data, 'Existing encounter or Patient identity changed'
-        assert c.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0013_diagnosis_master'
+        assert c.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0014_prescriptions'
 print('Visit migration content comparison passed')

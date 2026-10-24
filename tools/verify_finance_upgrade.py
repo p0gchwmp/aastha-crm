@@ -17,5 +17,5 @@ with engine.connect() as c:
         path.write_text(encoded)
     else:
         assert path.read_text()==encoded,'Existing financial history or counter changed'
-        assert c.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0013_diagnosis_master'
+        assert c.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='0014_prescriptions'
 print('Financial migration preserved bills, collections, entitlements and counters')
