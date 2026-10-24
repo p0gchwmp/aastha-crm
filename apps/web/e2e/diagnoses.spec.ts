@@ -15,8 +15,19 @@ test('Doctor selects multiple diagnoses; catalogue edits preserve recorded clini
  await page.getByRole('link',{name:'Doctor Consultations',exact:true}).click();await page.getByRole('button',{name:'Open '+name,exact:true}).click();const current=page.getByRole('region',{name:'Current consultation',exact:true});
  await current.getByRole('checkbox').check();await current.getByRole('button',{name:'Start Consultation',exact:true}).click();await expect(current).toContainText('IN PROGRESS');
  const diagnoses=current.getByRole('region',{name:'Visit diagnoses',exact:true});
- for(const diagnosis of [a,b]){await diagnoses.getByLabel('Search diagnoses',{exact:true}).fill(diagnosis);await diagnoses.getByRole('button',{name:'Add '+diagnosis,exact:true}).click()}
+ await expect(diagnoses.getByRole('button',{name:/^Add /})).toHaveCount(0);
+ await diagnoses.getByLabel('Search diagnoses',{exact:true}).fill('a');
+ await expect(diagnoses.getByRole('button',{name:/^Add /})).toHaveCount(0);
+ for(const diagnosis of [a,b]){await diagnoses.getByLabel('Search diagnoses',{exact:true}).fill(diagnosis);await diagnoses.getByRole('button',{name:'Add '+diagnosis,exact:true}).click();await expect(diagnoses.getByLabel('Search diagnoses',{exact:true})).toHaveValue('');await expect(diagnoses.getByRole('button',{name:/^Add /})).toHaveCount(0)}
  await diagnoses.getByRole('radio',{name:'Primary diagnosis '+b,exact:true}).check();
+ const radio=diagnoses.getByRole('radio',{name:'Primary diagnosis '+b,exact:true});
+ const box=await radio.boundingBox();expect(box!.width).toBeLessThan(24);
+ const primaryLabel=await radio.locator('..').boundingBox();expect(primaryLabel!.width).toBeLessThan(120);
+ await diagnoses.getByLabel('Search diagnoses',{exact:true}).fill('ac');
+ await expect(diagnoses.getByRole('button',{name:/^Add /}).first()).toBeVisible();
+ expect(await diagnoses.getByRole('button',{name:/^Add /}).count()).toBeLessThanOrEqual(10);
+ await diagnoses.getByLabel('Search diagnoses',{exact:true}).press('Escape');
+ await expect(diagnoses.getByRole('button',{name:/^Add /})).toHaveCount(0);
  // A network failure after commit must safely replay the same diagnosis selection.
  let interrupted=false;await page.route('**/doctor-consultations/*/save',async route=>{if(!interrupted){interrupted=true;const reply=await route.fetch();expect(reply.ok()).toBeTruthy();await route.abort('failed')}else await route.continue()});
  await current.getByRole('button',{name:'Save Notes',exact:true}).click();await current.getByRole('button',{name:'Retry Save',exact:true}).click();await expect(page.getByRole('status')).toContainText('saved successfully');
