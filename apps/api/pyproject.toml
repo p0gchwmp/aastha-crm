@@ -26,6 +26,9 @@ dev = ["pytest>=8", "httpx>=0.28", "ruff>=0.8"]
 include = ["app*"]
 exclude = ["alembic*", "tests*"]
 
+[tool.setuptools.package-data]
+app = ["data/*.json"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]

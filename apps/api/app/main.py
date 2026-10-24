@@ -77,3 +77,6 @@ app.include_router(doctor_consultations.router, prefix="/api/v1")
 from app.api.routes import clinical_team, clinical_preparations
 app.include_router(clinical_team.router, prefix="/api/v1")
 app.include_router(clinical_preparations.router, prefix="/api/v1")
+
+from app.api.routes import diagnoses
+app.include_router(diagnoses.router, prefix="/api/v1")
