@@ -14,13 +14,21 @@ from app.models.core import Doctor, User
 from app.models.patient import Patient
 from app.models.clinical import Visit, VisitType, VisitStatus, ConsultationNote, ConsultationNoteRevision
 from app.api.routes.visits import _serialize, _local_bounds
+from app.services.diagnoses import visit_diagnoses, set_visit_diagnoses
 
 router = APIRouter(prefix="/doctor-consultations", tags=["doctor-consultations"])
 FIELDS = ("history", "examination", "assessment", "plan", "followup_advice", "followup_date")
 
 
+class DiagnosisSelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    diagnosis_id: uuid.UUID
+    is_primary: bool = False
+
+
 class NoteAction(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    diagnoses: list[DiagnosisSelection] | None = Field(default=None, max_length=20)
     request_id: uuid.UUID
     row_version: int = Field(ge=1)
     identity_confirmed: bool = False
@@ -65,7 +73,7 @@ def note_data(note):
 
 
 def detail_data(db, visit, patient):
-    return {"visit": _serialize(db, visit), "patient": {"full_name": patient.full_name, "uhid": patient.uhid, "gender": patient.gender, "dob": patient.dob, "age_years": patient.age_years, "row_version": patient.row_version}, "note": note_data(db.scalar(select(ConsultationNote).where(ConsultationNote.visit_id == visit.visit_id)))}
+    return {"diagnoses": visit_diagnoses(db, visit.visit_id), "visit": _serialize(db, visit), "patient": {"full_name": patient.full_name, "uhid": patient.uhid, "gender": patient.gender, "dob": patient.dob, "age_years": patient.age_years, "row_version": patient.row_version}, "note": note_data(db.scalar(select(ConsultationNote).where(ConsultationNote.visit_id == visit.visit_id)))}
 
 
 @router.get("")
@@ -92,7 +100,7 @@ def detail(visit_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depe
     result["preparation"] = snapshot(db, preparation)
     from app.models.preparation import PreparationRevision
     result["preparation_revisions"] = [{"action":r.action,"occurred_at":r.occurred_at,"snapshot":r.snapshot} for r in db.scalars(select(PreparationRevision).where(PreparationRevision.preparation_id==preparation.preparation_id).order_by(PreparationRevision.occurred_at)).all()] if preparation else []
-    result["previous_visits"] = [{"visit": _serialize(db, v), "note": note_data(db.scalar(select(ConsultationNote).where(ConsultationNote.visit_id == v.visit_id)))} for v in db.scalars(stmt.order_by(Visit.checkin_at.desc()).limit(100)).all()]
+    result["previous_visits"] = [{"visit": _serialize(db, v), "note": note_data(db.scalar(select(ConsultationNote).where(ConsultationNote.visit_id == v.visit_id))), "diagnoses": visit_diagnoses(db, v.visit_id)} for v in db.scalars(stmt.order_by(Visit.checkin_at.desc()).limit(100)).all()]
     note = db.scalar(select(ConsultationNote).where(ConsultationNote.visit_id == visit_id))
     result["revisions"] = [{"action": r.action, "occurred_at": r.occurred_at, "snapshot": r.snapshot} for r in db.scalars(select(ConsultationNoteRevision).where(ConsultationNoteRevision.note_id == note.note_id).order_by(ConsultationNoteRevision.occurred_at)).all()] if note else []
     return result
@@ -149,6 +157,10 @@ def mutate(visit_id: uuid.UUID, action: str, payload: NoteAction, db: Session = 
             for key in FIELDS:
                 setattr(note, key, getattr(payload, key))
             note.row_version += 1
+        if action == "start" and payload.diagnoses:
+            raise HTTPException(409, "Start the consultation before recording diagnoses")
+        if action != "start":
+            set_visit_diagnoses(db, visit, doctor, user.organization_id, payload.diagnoses)
         if action == "complete":
             from app.api.routes.clinical_preparations import get_preparation
             preparation = get_preparation(db, visit_id, True)
@@ -165,6 +177,7 @@ def mutate(visit_id: uuid.UUID, action: str, payload: NoteAction, db: Session = 
         visit.updated_by = user.user_id
         db.flush()
         snapshot = {key: (getattr(note, key).isoformat() if isinstance(getattr(note, key), date) else getattr(note, key)) for key in FIELDS}
+        snapshot["diagnoses"] = [{**d, "diagnosis_id": str(d["diagnosis_id"])} for d in visit_diagnoses(db, visit_id)]
         snapshot.update(visit_version=visit.row_version, note_version=note.row_version, status=target)
         db.add(ConsultationNoteRevision(note_id=note.note_id, actor_user_id=user.user_id, request_id=payload.request_id, request_hash=digest, action=action.upper(), occurred_at=now, snapshot=snapshot))
         from app.services.audit import log_audit

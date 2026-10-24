@@ -1,0 +1,1295 @@
+{
+  "source_file": "Aastha_Dermatology_OPD_Clinical_System_v11 (1)(1).xlsx",
+  "source_sha256": "3ba22687876c114cafe1def203aeb621c434d0e899ec7022ca5f03311b905937",
+  "source_sheet": "Diagnosis Master",
+  "entries": [
+    {
+      "name": "Acne vulgaris – comedonal/mild",
+      "category": "Acne/Rosacea",
+      "history_module": "Acne & Hormonal",
+      "source_row": 5,
+      "requires_review": false
+    },
+    {
+      "name": "Acne vulgaris – moderate inflammatory",
+      "category": "Acne/Rosacea",
+      "history_module": "Acne & Hormonal",
+      "source_row": 6,
+      "requires_review": false
+    },
+    {
+      "name": "Acne vulgaris – severe / nodulocystic",
+      "category": "Acne/Rosacea",
+      "history_module": "Acne & Hormonal",
+      "source_row": 7,
+      "requires_review": false
+    },
+    {
+      "name": "Acne – adult female / hormonal pattern",
+      "category": "Acne/Rosacea",
+      "history_module": "Acne & Hormonal",
+      "source_row": 8,
+      "requires_review": false
+    },
+    {
+      "name": "Rosacea – papulopustular",
+      "category": "Acne/Rosacea",
+      "history_module": "Acne & Hormonal",
+      "source_row": 9,
+      "requires_review": false
+    },
+    {
+      "name": "Perioral dermatitis",
+      "category": "Acne/Rosacea",
+      "history_module": "General Dermatitis",
+      "source_row": 10,
+      "requires_review": false
+    },
+    {
+      "name": "Tinea corporis / cruris",
+      "category": "Fungal Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 11,
+      "requires_review": false
+    },
+    {
+      "name": "Tinea faciei",
+      "category": "Fungal Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 12,
+      "requires_review": false
+    },
+    {
+      "name": "Tinea pedis / manuum",
+      "category": "Fungal Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 13,
+      "requires_review": false
+    },
+    {
+      "name": "Tinea capitis",
+      "category": "Fungal Infection",
+      "history_module": "Hair & Scalp",
+      "source_row": 14,
+      "requires_review": false
+    },
+    {
+      "name": "Onychomycosis",
+      "category": "Fungal Infection",
+      "history_module": "Nail / Infection",
+      "source_row": 15,
+      "requires_review": false
+    },
+    {
+      "name": "Candidiasis – cutaneous / mucosal",
+      "category": "Fungal Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 16,
+      "requires_review": false
+    },
+    {
+      "name": "Pityriasis versicolor – extensive/recurrent",
+      "category": "Fungal Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 17,
+      "requires_review": false
+    },
+    {
+      "name": "Impetigo – extensive",
+      "category": "Bacterial Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 18,
+      "requires_review": false
+    },
+    {
+      "name": "Folliculitis / furunculosis",
+      "category": "Bacterial Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 19,
+      "requires_review": false
+    },
+    {
+      "name": "Cellulitis / erysipelas – uncomplicated",
+      "category": "Bacterial Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 20,
+      "requires_review": false
+    },
+    {
+      "name": "Herpes labialis / cold sore",
+      "category": "Viral Infection",
+      "history_module": "HSV / Zoster",
+      "source_row": 21,
+      "requires_review": false
+    },
+    {
+      "name": "Genital herpes – initial episode",
+      "category": "STI / Genital Dermatosis",
+      "history_module": "STI / Genital",
+      "source_row": 22,
+      "requires_review": false
+    },
+    {
+      "name": "Genital herpes – recurrent episode",
+      "category": "STI / Genital Dermatosis",
+      "history_module": "STI / Genital",
+      "source_row": 23,
+      "requires_review": false
+    },
+    {
+      "name": "Genital herpes – suppressive therapy standard",
+      "category": "STI / Genital Dermatosis",
+      "history_module": "STI / Genital",
+      "source_row": 24,
+      "requires_review": false
+    },
+    {
+      "name": "Genital herpes – suppressive therapy ≤9 recurrences/year",
+      "category": "STI / Genital Dermatosis",
+      "history_module": "STI / Genital",
+      "source_row": 25,
+      "requires_review": false
+    },
+    {
+      "name": "Herpes zoster",
+      "category": "Viral Infection",
+      "history_module": "HSV / Zoster",
+      "source_row": 26,
+      "requires_review": false
+    },
+    {
+      "name": "Acute urticaria",
+      "category": "Urticaria / Allergy",
+      "history_module": "Urticaria / Allergy",
+      "source_row": 27,
+      "requires_review": false
+    },
+    {
+      "name": "Chronic spontaneous urticaria",
+      "category": "Urticaria / Allergy",
+      "history_module": "Urticaria / Allergy",
+      "source_row": 28,
+      "requires_review": false
+    },
+    {
+      "name": "Angioedema without anaphylaxis",
+      "category": "Urticaria / Allergy",
+      "history_module": "Urticaria / Allergy",
+      "source_row": 29,
+      "requires_review": false
+    },
+    {
+      "name": "Anaphylaxis / systemic allergic reaction",
+      "category": "Emergency",
+      "history_module": "Urticaria / Allergy",
+      "source_row": 30,
+      "requires_review": false
+    },
+    {
+      "name": "Atopic dermatitis – adult moderate/severe",
+      "category": "Dermatitis",
+      "history_module": "General Dermatitis",
+      "source_row": 31,
+      "requires_review": false
+    },
+    {
+      "name": "Atopic dermatitis – pediatric",
+      "category": "Dermatitis",
+      "history_module": "Pediatric Dermatitis",
+      "source_row": 32,
+      "requires_review": false
+    },
+    {
+      "name": "Allergic contact dermatitis",
+      "category": "Dermatitis",
+      "history_module": "General Dermatitis",
+      "source_row": 33,
+      "requires_review": false
+    },
+    {
+      "name": "Irritant contact dermatitis",
+      "category": "Dermatitis",
+      "history_module": "General Dermatitis",
+      "source_row": 34,
+      "requires_review": false
+    },
+    {
+      "name": "Chronic hand eczema",
+      "category": "Dermatitis",
+      "history_module": "Hand Dermatitis",
+      "source_row": 35,
+      "requires_review": false
+    },
+    {
+      "name": "Dyshidrotic eczema / pompholyx",
+      "category": "Dermatitis",
+      "history_module": "Hand Dermatitis",
+      "source_row": 36,
+      "requires_review": false
+    },
+    {
+      "name": "Nummular eczema",
+      "category": "Dermatitis",
+      "history_module": "General Dermatitis",
+      "source_row": 37,
+      "requires_review": false
+    },
+    {
+      "name": "Seborrheic dermatitis",
+      "category": "Dermatitis",
+      "history_module": "Hair & Scalp",
+      "source_row": 38,
+      "requires_review": false
+    },
+    {
+      "name": "Plaque psoriasis – moderate/severe",
+      "category": "Psoriasis",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 39,
+      "requires_review": false
+    },
+    {
+      "name": "Scalp psoriasis – severe/refractory",
+      "category": "Psoriasis",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 40,
+      "requires_review": false
+    },
+    {
+      "name": "Palmoplantar psoriasis",
+      "category": "Psoriasis",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 41,
+      "requires_review": false
+    },
+    {
+      "name": "Guttate psoriasis",
+      "category": "Psoriasis",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 42,
+      "requires_review": false
+    },
+    {
+      "name": "Pustular / erythrodermic psoriasis",
+      "category": "Emergency / Severe Psoriasis",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 43,
+      "requires_review": false
+    },
+    {
+      "name": "Psoriatic arthritis suspected",
+      "category": "Psoriasis",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 44,
+      "requires_review": false
+    },
+    {
+      "name": "Alopecia areata – localized",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 45,
+      "requires_review": false
+    },
+    {
+      "name": "Alopecia areata – extensive/severe",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 46,
+      "requires_review": false
+    },
+    {
+      "name": "Androgenetic alopecia – male",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 47,
+      "requires_review": false
+    },
+    {
+      "name": "Female pattern hair loss",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 48,
+      "requires_review": false
+    },
+    {
+      "name": "Telogen effluvium",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 49,
+      "requires_review": false
+    },
+    {
+      "name": "Lichen planopilaris / scarring alopecia",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 50,
+      "requires_review": false
+    },
+    {
+      "name": "Melasma",
+      "category": "Pigmentation",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 51,
+      "requires_review": false
+    },
+    {
+      "name": "Post-inflammatory hyperpigmentation",
+      "category": "Pigmentation",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 52,
+      "requires_review": false
+    },
+    {
+      "name": "Vitiligo – localized",
+      "category": "Pigmentation",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 53,
+      "requires_review": false
+    },
+    {
+      "name": "Vitiligo – generalized/progressive",
+      "category": "Pigmentation",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 54,
+      "requires_review": false
+    },
+    {
+      "name": "Cutaneous lupus / DLE",
+      "category": "Autoimmune",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 55,
+      "requires_review": false
+    },
+    {
+      "name": "Dermatomyositis – cutaneous",
+      "category": "Autoimmune",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 56,
+      "requires_review": false
+    },
+    {
+      "name": "Pemphigus vulgaris",
+      "category": "Autoimmune Bullous",
+      "history_module": "Bullous / Autoimmune",
+      "source_row": 57,
+      "requires_review": false
+    },
+    {
+      "name": "Bullous pemphigoid",
+      "category": "Autoimmune Bullous",
+      "history_module": "Bullous / Autoimmune",
+      "source_row": 58,
+      "requires_review": false
+    },
+    {
+      "name": "Verruca vulgaris / common warts",
+      "category": "Warts / Procedures",
+      "history_module": "Warts / Procedures",
+      "source_row": 59,
+      "requires_review": false
+    },
+    {
+      "name": "Plantar / recalcitrant warts",
+      "category": "Warts / Procedures",
+      "history_module": "Warts / Procedures",
+      "source_row": 60,
+      "requires_review": false
+    },
+    {
+      "name": "Genital warts / condyloma acuminata",
+      "category": "STI / Genital Dermatosis",
+      "history_module": "STI / Genital",
+      "source_row": 61,
+      "requires_review": false
+    },
+    {
+      "name": "Keloid",
+      "category": "Scar / Procedure",
+      "history_module": "Scar / Procedure",
+      "source_row": 62,
+      "requires_review": false
+    },
+    {
+      "name": "Hypertrophic scar",
+      "category": "Scar / Procedure",
+      "history_module": "Scar / Procedure",
+      "source_row": 63,
+      "requires_review": false
+    },
+    {
+      "name": "Cystic acne lesion – intralesional treatment",
+      "category": "Acne / Procedure",
+      "history_module": "Acne & Hormonal",
+      "source_row": 64,
+      "requires_review": true
+    },
+    {
+      "name": "Localized hyperhidrosis – axillary",
+      "category": "Sweating Disorder",
+      "history_module": "General",
+      "source_row": 65,
+      "requires_review": false
+    },
+    {
+      "name": "Hidradenitis suppurativa – moderate/severe",
+      "category": "Inflammatory",
+      "history_module": "HS / Follicular",
+      "source_row": 66,
+      "requires_review": false
+    },
+    {
+      "name": "Prurigo nodularis",
+      "category": "Inflammatory",
+      "history_module": "Pruritus",
+      "source_row": 67,
+      "requires_review": false
+    },
+    {
+      "name": "Primary / secondary syphilis",
+      "category": "STI / Venereology",
+      "history_module": "STI / Genital",
+      "source_row": 68,
+      "requires_review": false
+    },
+    {
+      "name": "Early latent syphilis",
+      "category": "STI / Venereology",
+      "history_module": "STI / Genital",
+      "source_row": 69,
+      "requires_review": false
+    },
+    {
+      "name": "Late latent syphilis / unknown duration",
+      "category": "STI / Venereology",
+      "history_module": "STI / Genital",
+      "source_row": 70,
+      "requires_review": false
+    },
+    {
+      "name": "Uncomplicated gonorrhea",
+      "category": "STI / Venereology",
+      "history_module": "STI / Genital",
+      "source_row": 71,
+      "requires_review": false
+    },
+    {
+      "name": "Scabies – classic",
+      "category": "Parasitic",
+      "history_module": "Infection / Exposure",
+      "source_row": 72,
+      "requires_review": false
+    },
+    {
+      "name": "Scabies – crusted",
+      "category": "Parasitic",
+      "history_module": "Infection / Exposure",
+      "source_row": 73,
+      "requires_review": false
+    },
+    {
+      "name": "Pediculosis",
+      "category": "Parasitic",
+      "history_module": "Infection / Exposure",
+      "source_row": 74,
+      "requires_review": false
+    },
+    {
+      "name": "Leprosy – paucibacillary / multibacillary",
+      "category": "Leprosy",
+      "history_module": "Leprosy / Neuropathy",
+      "source_row": 75,
+      "requires_review": false
+    },
+    {
+      "name": "Behçet disease – mucocutaneous",
+      "category": "Inflammatory",
+      "history_module": "Autoimmune / Ulcer",
+      "source_row": 76,
+      "requires_review": false
+    },
+    {
+      "name": "Lichen planus – extensive",
+      "category": "Inflammatory",
+      "history_module": "General Dermatitis",
+      "source_row": 77,
+      "requires_review": false
+    },
+    {
+      "name": "Lichen simplex chronicus / nodular prurigo",
+      "category": "Pruritus",
+      "history_module": "Pruritus",
+      "source_row": 78,
+      "requires_review": false
+    },
+    {
+      "name": "Neuropathic pruritus",
+      "category": "Pruritus",
+      "history_module": "Pruritus",
+      "source_row": 79,
+      "requires_review": false
+    },
+    {
+      "name": "Generalized pruritus – cause unknown",
+      "category": "Pruritus",
+      "history_module": "Pruritus",
+      "source_row": 80,
+      "requires_review": false
+    },
+    {
+      "name": "Drug eruption – uncomplicated morbilliform",
+      "category": "Drug Reaction",
+      "history_module": "Drug Reaction",
+      "source_row": 81,
+      "requires_review": false
+    },
+    {
+      "name": "SJS / TEN suspected",
+      "category": "Emergency",
+      "history_module": "Drug Reaction",
+      "source_row": 82,
+      "requires_review": false
+    },
+    {
+      "name": "DRESS suspected",
+      "category": "Emergency",
+      "history_module": "Drug Reaction",
+      "source_row": 83,
+      "requires_review": false
+    },
+    {
+      "name": "Acne excoriée",
+      "category": "Acne/Rosacea",
+      "history_module": "Acne & Hormonal",
+      "source_row": 84,
+      "requires_review": false
+    },
+    {
+      "name": "Acne conglobata",
+      "category": "Acne/Rosacea",
+      "history_module": "Acne & Hormonal",
+      "source_row": 85,
+      "requires_review": false
+    },
+    {
+      "name": "Acne fulminans suspected",
+      "category": "Emergency / Acne",
+      "history_module": "Acne & Hormonal",
+      "source_row": 86,
+      "requires_review": false
+    },
+    {
+      "name": "Steroid acne / acneiform eruption",
+      "category": "Acne/Rosacea",
+      "history_module": "Drug Reaction",
+      "source_row": 87,
+      "requires_review": false
+    },
+    {
+      "name": "Gram-negative folliculitis",
+      "category": "Bacterial Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 88,
+      "requires_review": false
+    },
+    {
+      "name": "Demodicosis",
+      "category": "Acne/Rosacea",
+      "history_module": "Acne & Hormonal",
+      "source_row": 89,
+      "requires_review": false
+    },
+    {
+      "name": "Rhinophyma",
+      "category": "Acne/Rosacea",
+      "history_module": "Acne & Hormonal",
+      "source_row": 90,
+      "requires_review": false
+    },
+    {
+      "name": "Milia",
+      "category": "Benign Lesion",
+      "history_module": "Warts / Procedures",
+      "source_row": 91,
+      "requires_review": false
+    },
+    {
+      "name": "Sebaceous hyperplasia",
+      "category": "Benign Lesion",
+      "history_module": "Warts / Procedures",
+      "source_row": 92,
+      "requires_review": false
+    },
+    {
+      "name": "Syringoma",
+      "category": "Benign Lesion",
+      "history_module": "Warts / Procedures",
+      "source_row": 93,
+      "requires_review": false
+    },
+    {
+      "name": "Dermatosis papulosa nigra",
+      "category": "Benign Lesion",
+      "history_module": "Warts / Procedures",
+      "source_row": 94,
+      "requires_review": false
+    },
+    {
+      "name": "Skin tags / acrochordons",
+      "category": "Benign Lesion",
+      "history_module": "Warts / Procedures",
+      "source_row": 95,
+      "requires_review": false
+    },
+    {
+      "name": "Seborrheic keratosis",
+      "category": "Benign Lesion",
+      "history_module": "Warts / Procedures",
+      "source_row": 96,
+      "requires_review": false
+    },
+    {
+      "name": "Solar lentigo",
+      "category": "Pigmentation",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 97,
+      "requires_review": false
+    },
+    {
+      "name": "Freckles / ephelides",
+      "category": "Pigmentation",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 98,
+      "requires_review": false
+    },
+    {
+      "name": "Lichen planus pigmentosus",
+      "category": "Pigmentation",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 99,
+      "requires_review": false
+    },
+    {
+      "name": "Acanthosis nigricans",
+      "category": "Pigmentation / Metabolic",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 100,
+      "requires_review": false
+    },
+    {
+      "name": "Nevus depigmentosus",
+      "category": "Pigmentation",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 101,
+      "requires_review": false
+    },
+    {
+      "name": "Pityriasis alba",
+      "category": "Pediatric / Pigment",
+      "history_module": "Pediatric Dermatitis",
+      "source_row": 102,
+      "requires_review": false
+    },
+    {
+      "name": "Idiopathic guttate hypomelanosis",
+      "category": "Pigmentation",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 103,
+      "requires_review": false
+    },
+    {
+      "name": "Post-inflammatory hypopigmentation",
+      "category": "Pigmentation",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 104,
+      "requires_review": false
+    },
+    {
+      "name": "Photoallergic contact dermatitis",
+      "category": "Photodermatosis",
+      "history_module": "General Dermatitis",
+      "source_row": 105,
+      "requires_review": false
+    },
+    {
+      "name": "Phototoxic drug eruption",
+      "category": "Photodermatosis",
+      "history_module": "Drug Reaction",
+      "source_row": 106,
+      "requires_review": false
+    },
+    {
+      "name": "Polymorphic light eruption",
+      "category": "Photodermatosis",
+      "history_module": "General Dermatitis",
+      "source_row": 107,
+      "requires_review": false
+    },
+    {
+      "name": "Solar urticaria",
+      "category": "Photodermatosis",
+      "history_module": "Urticaria / Allergy",
+      "source_row": 108,
+      "requires_review": false
+    },
+    {
+      "name": "Stasis dermatitis / venous eczema",
+      "category": "Dermatitis / Vascular",
+      "history_module": "General Dermatitis",
+      "source_row": 109,
+      "requires_review": false
+    },
+    {
+      "name": "Asteatotic eczema",
+      "category": "Dermatitis",
+      "history_module": "General Dermatitis",
+      "source_row": 110,
+      "requires_review": false
+    },
+    {
+      "name": "Eyelid dermatitis",
+      "category": "Dermatitis",
+      "history_module": "General Dermatitis",
+      "source_row": 111,
+      "requires_review": false
+    },
+    {
+      "name": "Nipple eczema",
+      "category": "Dermatitis",
+      "history_module": "General Dermatitis",
+      "source_row": 112,
+      "requires_review": false
+    },
+    {
+      "name": "Diaper dermatitis",
+      "category": "Pediatric Dermatitis",
+      "history_module": "Pediatric Dermatitis",
+      "source_row": 113,
+      "requires_review": false
+    },
+    {
+      "name": "Cradle cap / infantile seborrheic dermatitis",
+      "category": "Pediatric Dermatitis",
+      "history_module": "Pediatric Dermatitis",
+      "source_row": 114,
+      "requires_review": false
+    },
+    {
+      "name": "Pityriasis rosea",
+      "category": "Papulosquamous",
+      "history_module": "General Dermatitis",
+      "source_row": 115,
+      "requires_review": false
+    },
+    {
+      "name": "Lichen planus – oral",
+      "category": "Inflammatory",
+      "history_module": "General Dermatitis",
+      "source_row": 116,
+      "requires_review": false
+    },
+    {
+      "name": "Lichen planus – hypertrophic",
+      "category": "Inflammatory",
+      "history_module": "General Dermatitis",
+      "source_row": 117,
+      "requires_review": false
+    },
+    {
+      "name": "Lichen planus – nail",
+      "category": "Nail Disorder",
+      "history_module": "Nail / Infection",
+      "source_row": 118,
+      "requires_review": false
+    },
+    {
+      "name": "Granuloma annulare",
+      "category": "Inflammatory",
+      "history_module": "General Dermatitis",
+      "source_row": 119,
+      "requires_review": false
+    },
+    {
+      "name": "Erythema nodosum",
+      "category": "Panniculitis",
+      "history_module": "Autoimmune / Ulcer",
+      "source_row": 120,
+      "requires_review": false
+    },
+    {
+      "name": "Erythema multiforme",
+      "category": "Reactive Dermatosis",
+      "history_module": "Drug Reaction",
+      "source_row": 121,
+      "requires_review": false
+    },
+    {
+      "name": "Urticarial vasculitis suspected",
+      "category": "Vasculitis",
+      "history_module": "Autoimmune / Ulcer",
+      "source_row": 122,
+      "requires_review": false
+    },
+    {
+      "name": "Cutaneous small-vessel vasculitis",
+      "category": "Vasculitis",
+      "history_module": "Autoimmune / Ulcer",
+      "source_row": 123,
+      "requires_review": false
+    },
+    {
+      "name": "Morphea / localized scleroderma",
+      "category": "Autoimmune",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 124,
+      "requires_review": false
+    },
+    {
+      "name": "Systemic sclerosis skin involvement suspected",
+      "category": "Autoimmune",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 125,
+      "requires_review": false
+    },
+    {
+      "name": "Discoid lupus erythematosus",
+      "category": "Autoimmune",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 126,
+      "requires_review": false
+    },
+    {
+      "name": "Subacute cutaneous lupus",
+      "category": "Autoimmune",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 127,
+      "requires_review": false
+    },
+    {
+      "name": "Pemphigus foliaceus",
+      "category": "Autoimmune Bullous",
+      "history_module": "Bullous / Autoimmune",
+      "source_row": 128,
+      "requires_review": false
+    },
+    {
+      "name": "Linear IgA bullous dermatosis suspected",
+      "category": "Autoimmune Bullous",
+      "history_module": "Bullous / Autoimmune",
+      "source_row": 129,
+      "requires_review": false
+    },
+    {
+      "name": "Dermatitis herpetiformis – active",
+      "category": "Autoimmune Bullous",
+      "history_module": "Bullous / Autoimmune",
+      "source_row": 130,
+      "requires_review": false
+    },
+    {
+      "name": "Porphyria cutanea tarda suspected",
+      "category": "Blistering / Metabolic",
+      "history_module": "Bullous / Autoimmune",
+      "source_row": 131,
+      "requires_review": false
+    },
+    {
+      "name": "Molluscum contagiosum",
+      "category": "Viral Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 132,
+      "requires_review": false
+    },
+    {
+      "name": "Varicella / chickenpox",
+      "category": "Viral Infection",
+      "history_module": "HSV / Zoster",
+      "source_row": 133,
+      "requires_review": false
+    },
+    {
+      "name": "Hand-foot-mouth disease",
+      "category": "Viral Infection",
+      "history_module": "Pediatric Dermatitis",
+      "source_row": 134,
+      "requires_review": false
+    },
+    {
+      "name": "Eczema herpeticum suspected",
+      "category": "Emergency / Viral",
+      "history_module": "HSV / Zoster",
+      "source_row": 135,
+      "requires_review": false
+    },
+    {
+      "name": "Ecthyma",
+      "category": "Bacterial Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 136,
+      "requires_review": false
+    },
+    {
+      "name": "Skin abscess",
+      "category": "Bacterial Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 137,
+      "requires_review": false
+    },
+    {
+      "name": "MRSA skin / soft-tissue infection suspected",
+      "category": "Bacterial Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 138,
+      "requires_review": false
+    },
+    {
+      "name": "Infected epidermoid / sebaceous cyst",
+      "category": "Bacterial / Surgical",
+      "history_module": "Infection / Exposure",
+      "source_row": 139,
+      "requires_review": false
+    },
+    {
+      "name": "Epidermoid cyst – noninfected",
+      "category": "Benign Lesion / Surgery",
+      "history_module": "Warts / Procedures",
+      "source_row": 140,
+      "requires_review": false
+    },
+    {
+      "name": "Lipoma",
+      "category": "Benign Lesion / Surgery",
+      "history_module": "Warts / Procedures",
+      "source_row": 141,
+      "requires_review": false
+    },
+    {
+      "name": "Pyogenic granuloma",
+      "category": "Vascular Lesion",
+      "history_module": "Warts / Procedures",
+      "source_row": 142,
+      "requires_review": false
+    },
+    {
+      "name": "Dermatofibroma",
+      "category": "Benign Lesion",
+      "history_module": "Warts / Procedures",
+      "source_row": 143,
+      "requires_review": false
+    },
+    {
+      "name": "Melanocytic nevus – benign appearing",
+      "category": "Pigmented Lesion",
+      "history_module": "Pigmented Lesion",
+      "source_row": 144,
+      "requires_review": false
+    },
+    {
+      "name": "Atypical nevus / melanoma suspicion",
+      "category": "Skin Cancer / Pigmented Lesion",
+      "history_module": "Pigmented Lesion",
+      "source_row": 145,
+      "requires_review": false
+    },
+    {
+      "name": "Basal cell carcinoma suspected",
+      "category": "Skin Cancer",
+      "history_module": "Skin Cancer",
+      "source_row": 146,
+      "requires_review": false
+    },
+    {
+      "name": "Squamous cell carcinoma suspected",
+      "category": "Skin Cancer",
+      "history_module": "Skin Cancer",
+      "source_row": 147,
+      "requires_review": false
+    },
+    {
+      "name": "Actinic keratosis",
+      "category": "Premalignant Lesion",
+      "history_module": "Skin Cancer",
+      "source_row": 148,
+      "requires_review": false
+    },
+    {
+      "name": "Bowen disease / SCC in situ suspected",
+      "category": "Skin Cancer",
+      "history_module": "Skin Cancer",
+      "source_row": 149,
+      "requires_review": false
+    },
+    {
+      "name": "Keratoacanthoma suspected",
+      "category": "Skin Cancer / Benign mimic",
+      "history_module": "Skin Cancer",
+      "source_row": 150,
+      "requires_review": false
+    },
+    {
+      "name": "Xanthelasma",
+      "category": "Benign / Metabolic",
+      "history_module": "Warts / Procedures",
+      "source_row": 151,
+      "requires_review": false
+    },
+    {
+      "name": "Keloid – ear / post piercing",
+      "category": "Scar / Procedure",
+      "history_module": "Scar / Procedure",
+      "source_row": 152,
+      "requires_review": false
+    },
+    {
+      "name": "Post-acne atrophic scars",
+      "category": "Scar / Procedure",
+      "history_module": "Scar / Procedure",
+      "source_row": 153,
+      "requires_review": false
+    },
+    {
+      "name": "Post-inflammatory scar / dyspigmentation",
+      "category": "Scar / Procedure",
+      "history_module": "Scar / Procedure",
+      "source_row": 154,
+      "requires_review": false
+    },
+    {
+      "name": "Acute paronychia",
+      "category": "Nail Disorder",
+      "history_module": "Nail / Infection",
+      "source_row": 155,
+      "requires_review": false
+    },
+    {
+      "name": "Chronic paronychia",
+      "category": "Nail Disorder",
+      "history_module": "Nail / Infection",
+      "source_row": 156,
+      "requires_review": false
+    },
+    {
+      "name": "Ingrown toenail",
+      "category": "Nail Disorder",
+      "history_module": "Nail / Infection",
+      "source_row": 157,
+      "requires_review": false
+    },
+    {
+      "name": "Nail psoriasis",
+      "category": "Nail Disorder",
+      "history_module": "Psoriasis / Autoimmune",
+      "source_row": 158,
+      "requires_review": false
+    },
+    {
+      "name": "Onycholysis – nonfungal",
+      "category": "Nail Disorder",
+      "history_module": "Nail / Infection",
+      "source_row": 159,
+      "requires_review": false
+    },
+    {
+      "name": "Traction alopecia",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 160,
+      "requires_review": false
+    },
+    {
+      "name": "Trichotillomania",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 161,
+      "requires_review": false
+    },
+    {
+      "name": "Anagen effluvium",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 162,
+      "requires_review": false
+    },
+    {
+      "name": "Alopecia totalis / universalis",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 163,
+      "requires_review": false
+    },
+    {
+      "name": "Central centrifugal cicatricial alopecia",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 164,
+      "requires_review": false
+    },
+    {
+      "name": "Folliculitis decalvans",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 165,
+      "requires_review": false
+    },
+    {
+      "name": "Dissecting cellulitis of scalp",
+      "category": "Hair / Alopecia",
+      "history_module": "Hair & Scalp",
+      "source_row": 166,
+      "requires_review": false
+    },
+    {
+      "name": "Keratosis pilaris",
+      "category": "Keratinization",
+      "history_module": "General Dermatitis",
+      "source_row": 167,
+      "requires_review": false
+    },
+    {
+      "name": "Ichthyosis vulgaris",
+      "category": "Keratinization",
+      "history_module": "General Dermatitis",
+      "source_row": 168,
+      "requires_review": false
+    },
+    {
+      "name": "Palmoplantar keratoderma",
+      "category": "Keratinization",
+      "history_module": "General Dermatitis",
+      "source_row": 169,
+      "requires_review": false
+    },
+    {
+      "name": "Hyperhidrosis – palmar",
+      "category": "Sweating Disorder",
+      "history_module": "General",
+      "source_row": 170,
+      "requires_review": false
+    },
+    {
+      "name": "Hyperhidrosis – generalized",
+      "category": "Sweating Disorder",
+      "history_module": "General",
+      "source_row": 171,
+      "requires_review": false
+    },
+    {
+      "name": "Bromhidrosis",
+      "category": "Sweating Disorder",
+      "history_module": "General",
+      "source_row": 172,
+      "requires_review": false
+    },
+    {
+      "name": "Hidradenitis suppurativa – mild",
+      "category": "Inflammatory",
+      "history_module": "HS / Follicular",
+      "source_row": 173,
+      "requires_review": false
+    },
+    {
+      "name": "Intertrigo",
+      "category": "Fold Dermatosis",
+      "history_module": "Infection / Exposure",
+      "source_row": 174,
+      "requires_review": false
+    },
+    {
+      "name": "Erythrasma",
+      "category": "Bacterial Infection",
+      "history_module": "Infection / Exposure",
+      "source_row": 175,
+      "requires_review": false
+    },
+    {
+      "name": "Periorbital / facial cellulitis suspected",
+      "category": "Emergency / Bacterial",
+      "history_module": "Infection / Exposure",
+      "source_row": 176,
+      "requires_review": false
+    },
+    {
+      "name": "Chancroid suspected",
+      "category": "STI / Venereology",
+      "history_module": "STI / Genital",
+      "source_row": 177,
+      "requires_review": false
+    },
+    {
+      "name": "Lymphogranuloma venereum suspected",
+      "category": "STI / Venereology",
+      "history_module": "STI / Genital",
+      "source_row": 178,
+      "requires_review": false
+    },
+    {
+      "name": "Pediculosis pubis",
+      "category": "STI / Venereology",
+      "history_module": "STI / Genital",
+      "source_row": 179,
+      "requires_review": false
+    },
+    {
+      "name": "Balanitis / balanoposthitis",
+      "category": "Genital Dermatosis",
+      "history_module": "STI / Genital",
+      "source_row": 180,
+      "requires_review": false
+    },
+    {
+      "name": "Lichen sclerosus – genital",
+      "category": "Genital Dermatosis",
+      "history_module": "STI / Genital",
+      "source_row": 181,
+      "requires_review": false
+    },
+    {
+      "name": "Vulval / genital dermatitis",
+      "category": "Genital Dermatosis",
+      "history_module": "STI / Genital",
+      "source_row": 182,
+      "requires_review": false
+    },
+    {
+      "name": "Chronic venous insufficiency / leg edema",
+      "category": "Vascular Dermatosis",
+      "history_module": "General Dermatitis",
+      "source_row": 183,
+      "requires_review": false
+    },
+    {
+      "name": "Venous leg ulcer",
+      "category": "Vascular Dermatosis",
+      "history_module": "Autoimmune / Ulcer",
+      "source_row": 184,
+      "requires_review": false
+    },
+    {
+      "name": "Diabetic foot skin ulcer / infection",
+      "category": "Emergency / Wound",
+      "history_module": "Infection / Exposure",
+      "source_row": 185,
+      "requires_review": false
+    },
+    {
+      "name": "Pressure ulcer / wound",
+      "category": "Wound",
+      "history_module": "Autoimmune / Ulcer",
+      "source_row": 186,
+      "requires_review": false
+    },
+    {
+      "name": "Post-procedure pain / inflammation",
+      "category": "Procedure Aftercare",
+      "history_module": "Warts / Procedures",
+      "source_row": 187,
+      "requires_review": true
+    },
+    {
+      "name": "PUVA / trioxsalen photochemotherapy – vitiligo",
+      "category": "Phototherapy",
+      "history_module": "Pigmentation / Vitiligo",
+      "source_row": 188,
+      "requires_review": true
+    }
+  ]
+}

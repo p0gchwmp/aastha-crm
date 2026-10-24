@@ -27,6 +27,7 @@ from app.services.integration_auth import hash_integration_key
 from app.core.config import get_settings
 
 PERMISSIONS = [
+    "DIAGNOSIS_MASTER_MANAGE",
     "CLINICAL_TEAM_MANAGE", "CLINICAL_ASSIGN", "CLINICAL_PREPARATION",
     "CONSULTATION_CLINICAL",
     "LEAD_CREATE", "LEAD_VIEW", "LEAD_EDIT", "LEAD_EXTERNAL_ASSIGN", "LEAD_EXPORT",
@@ -51,7 +52,7 @@ ROLE_PERMS = {
     "ADMIN": set(PERMISSIONS) - {"CONSULTATION_COMPLIMENTARY", "CONSULTATION_CLINICAL", "CLINICAL_PREPARATION"},
     "SUPER_ADMIN": set(PERMISSIONS) - {"CONSULTATION_CLINICAL", "CLINICAL_PREPARATION"},
     "CLINICAL_ASSISTANT": {"CLINICAL_PREPARATION"},
-    "DOCTOR": {"CLINICAL_ASSIGN", "CONSULTATION_CLINICAL", "PATIENT_VIEW", "VISIT_EDIT", "PROCEDURE_VIEW", "PROCEDURE_ORDER_CREATE", "PROCEDURE_EXECUTE", "CONSULTATION_FINANCE_VIEW", "CONSULTATION_COMPLIMENTARY"},
+    "DOCTOR": {"DIAGNOSIS_MASTER_MANAGE", "CLINICAL_ASSIGN", "CONSULTATION_CLINICAL", "PATIENT_VIEW", "VISIT_EDIT", "PROCEDURE_VIEW", "PROCEDURE_ORDER_CREATE", "PROCEDURE_EXECUTE", "CONSULTATION_FINANCE_VIEW", "CONSULTATION_COMPLIMENTARY"},
 }
 
 
@@ -236,6 +237,8 @@ def main():
                 defaults={"prefix_template": template, "current_number": 0, "reset_rule": "NEVER" if code == "UHID" else "FISCAL_YEAR"},
             )
 
+        from app.services.diagnoses import seed_catalogue
+        seed_catalogue(db, org.organization_id)
         db.commit()
         if get_settings().is_production:
             print("Production bootstrap complete. User passwords were supplied through environment variables and are not printed.")
