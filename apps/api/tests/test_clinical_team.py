@@ -161,9 +161,25 @@ def test_branch_removal_expiry_and_old_profile_linking(team):
  assert c.get(PREP+'/'+v['visit_id'],headers=ah).status_code==403
  # Attaching a login to an old operational Doctor must retain its permanent ID.
  old=Doctor(organization_id=users['ADMIN'].organization_id,doctor_code=uuid.uuid4().hex[:15],doctor_name='Existing operational Doctor',active=True);db.add(old);db.commit();old_id=str(old.doctor_id)
+ row=db.get(Visit,uuid.UUID(v['visit_id']));row.doctor_id=old.doctor_id;db.commit()
  payload={'name':'Existing operational Doctor','username':'linked'+uuid.uuid4().hex[:15],'role':'DOCTOR','existing_doctor_id':old_id,'branch_ids':[str(branches[0].branch_id)],'temporary_password':TEMP}
+ assert c.post(TEAM,headers=admin,json={**payload,'branch_ids':[str(branches[1].branch_id)]}).status_code==409
  r=c.post(TEAM,headers=admin,json=payload);assert r.status_code==201,r.text
  assert r.json()['doctor']['doctor_id']==old_id
  assert c.post(TEAM,headers=admin,json={**payload,'username':'other'+uuid.uuid4().hex[:15]}).status_code==409
  # Administrative accounts cannot be smuggled through the clinical role selector.
  assert c.post(TEAM,headers=admin,json={**payload,'role':'SUPER_ADMIN'}).status_code==422
+
+
+def test_remove_doctor_branch_requires_schedule_cleanup(team):
+ from datetime import date,time
+ from app.models.scheduling import DoctorSchedule
+ from app.api.routes.schedules import check_overlap
+ from app.schemas.scheduling import ScheduleFields
+ (c,db,branches,users,admin,login),create,d,dh,a,ah,*_=team
+ schedule=DoctorSchedule(doctor_id=uuid.UUID(d['doctor']['doctor_id']),branch_id=branches[0].branch_id,day_of_week=0,start_time=time(10),end_time=time(11),effective_from=date.today(),slot_duration_minutes=15,active=True);db.add(schedule);db.commit()
+ change={'name':d['name'],'role':'DOCTOR','branch_ids':[str(branches[1].branch_id)],'status':'ACTIVE','row_version':d['row_version'],'reason':'Move clinic branch'}
+ assert c.patch(TEAM+'/'+d['user_id'],headers=admin,json=change).status_code==409
+ schedule.active=False;db.commit();r=c.patch(TEAM+'/'+d['user_id'],headers=admin,json=change);assert r.status_code==200,r.text
+ # Disabling an old window must remain possible after access has moved elsewhere.
+ check_overlap(db,ScheduleFields(doctor_id=schedule.doctor_id,branch_id=schedule.branch_id,day_of_week=0,start_time=time(10),end_time=time(11),effective_from=date.today(),slot_duration_minutes=15,active=False,reason='Disable old clinic window'))

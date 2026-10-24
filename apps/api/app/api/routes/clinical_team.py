@@ -1,6 +1,7 @@
 """Administration of Doctor and Clinical Assistant accounts only."""
 import uuid
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
@@ -14,7 +15,7 @@ from app.core.permissions import require_permission
 from app.core.security import hash_password, verify_password
 from app.models.core import Branch, Doctor, Role, User, UserRole
 from app.models.clinical import Visit, VisitStatus
-from app.models.scheduling import Appointment, AppointmentStatus
+from app.models.scheduling import Appointment, AppointmentStatus, DoctorSchedule, ScheduleException
 from app.services.audit import log_audit
 
 router = APIRouter(prefix="/admin/clinical-team", tags=["clinical-team"])
@@ -79,6 +80,16 @@ def audit(db, actor, target, action, before=None, reason=None):
     log_audit(db, organization_id=actor.organization_id, entity_type="STAFF_USER", entity_id=target.user_id, action=action, actor_user_id=actor.user_id, before_data=before, after_data=data(db, target), reason=reason)
 
 
+def protect_removed_branches(db, doctor, removed):
+    if not removed: return
+    schedules=db.scalar(select(DoctorSchedule.schedule_id).where(DoctorSchedule.doctor_id==doctor.doctor_id,DoctorSchedule.branch_id.in_(removed),DoctorSchedule.active.is_(True),(DoctorSchedule.effective_until.is_(None)|(DoctorSchedule.effective_until>=datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Kolkata")).date()))).limit(1))
+    additional=db.scalar(select(ScheduleException.exception_id).where(ScheduleException.doctor_id==doctor.doctor_id,ScheduleException.branch_id.in_(removed),ScheduleException.exception_type=="ADDITIONAL",ScheduleException.date>=datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Kolkata")).date()).limit(1))
+    if schedules or additional: raise HTTPException(409,"Disable active schedules and cancel additional clinic windows before removing a Doctor branch")
+    open_visit=db.scalar(select(Visit.visit_id).join(VisitStatus).where(Visit.doctor_id==doctor.doctor_id, Visit.branch_id.in_(removed), VisitStatus.code.in_(["CREATED","WAITING","IN_PROGRESS"])).limit(1))
+    future=db.scalar(select(Appointment.appointment_id).join(AppointmentStatus).where(Appointment.doctor_id==doctor.doctor_id,Appointment.branch_id.in_(removed),Appointment.scheduled_end>datetime.now(timezone.utc),AppointmentStatus.code.not_in(["CANCELLED","NO_SHOW","COMPLETED"])).limit(1))
+    if open_visit or future: raise HTTPException(409, "Reassign open Visits and future appointments before removing a Doctor branch")
+
+
 @router.get("")
 def directory(db: Session=Depends(get_db), actor: User=Depends(manager)):
     allowed = allowed_branch_ids(db, actor)
@@ -112,6 +123,8 @@ def create(payload: TeamCreate, db: Session=Depends(get_db), actor: User=Depends
                 if allowed_branch_ids(db, actor) is not None: raise HTTPException(403, "Clinic-wide administrator required to link an existing profile")
                 doctor = db.scalar(select(Doctor).where(Doctor.doctor_id == payload.existing_doctor_id, Doctor.organization_id == actor.organization_id).with_for_update().execution_options(populate_existing=True))
                 if not doctor or doctor.user_id or not doctor.active: raise HTTPException(409, "Existing Doctor profile cannot be linked")
+                old_branches={b.branch_id for b in db.scalars(select(Branch).where(Branch.organization_id==actor.organization_id)).all()}
+                protect_removed_branches(db,doctor,old_branches-set(payload.branch_ids))
             else:
                 if not payload.doctor_code: raise HTTPException(422, "A Doctor code is required")
                 if db.scalar(select(Doctor).where(Doctor.organization_id == actor.organization_id, func.lower(Doctor.doctor_code) == payload.doctor_code.lower())): raise HTTPException(409, "Doctor code already exists")
@@ -122,7 +135,7 @@ def create(payload: TeamCreate, db: Session=Depends(get_db), actor: User=Depends
             if not doctor:
                 doctor = Doctor(organization_id=actor.organization_id, doctor_code=payload.doctor_code, doctor_name=payload.name, active=True)
                 db.add(doctor)
-            doctor.user_id=user.user_id; doctor.doctor_name=payload.name; doctor.speciality=payload.speciality
+            doctor.user_id=user.user_id; doctor.doctor_name=payload.name; doctor.speciality=payload.speciality if payload.speciality is not None else doctor.speciality
         db.flush(); audit(db, actor, user, "CLINICAL_ACCOUNT_CREATED"); db.commit()
         return data(db, user)
     except Exception as exc:
@@ -138,10 +151,7 @@ def update(user_id: uuid.UUID, payload: TeamUpdate, db: Session=Depends(get_db),
     before=data(db, target); doctor=profile(db, target, lock=True)
     if payload.role == "DOCTOR" and not doctor: raise HTTPException(409, "Doctor profile is missing")
     old=allowed_branch_ids(db, target); removed = (old - set(payload.branch_ids)) if old is not None else {b.branch_id for b in db.scalars(select(Branch).where(Branch.organization_id == actor.organization_id)).all()} - set(payload.branch_ids)
-    if doctor and removed:
-        open_visit=db.scalar(select(Visit.visit_id).join(VisitStatus).where(Visit.doctor_id==doctor.doctor_id, Visit.branch_id.in_(removed), VisitStatus.code.in_(["CREATED","WAITING","IN_PROGRESS"])).limit(1))
-        future=db.scalar(select(Appointment.appointment_id).join(AppointmentStatus).where(Appointment.doctor_id==doctor.doctor_id,Appointment.branch_id.in_(removed),Appointment.scheduled_end>datetime.now(timezone.utc),AppointmentStatus.code.not_in(["CANCELLED","NO_SHOW","COMPLETED"])).limit(1))
-        if open_visit or future: raise HTTPException(409, "Reassign open Visits and future appointments before removing a Doctor branch")
+    if doctor: protect_removed_branches(db,doctor,removed)
     for row in db.scalars(select(UserRole).where(UserRole.user_id==target.user_id)).all(): db.delete(row)
     role=db.scalar(select(Role).where(Role.code==payload.role))
     for branch in payload.branch_ids: db.add(UserRole(user_id=target.user_id, role_id=role.role_id, branch_id=branch))

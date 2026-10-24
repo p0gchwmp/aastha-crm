@@ -27,9 +27,9 @@ def overlaps(a,b):
     return a.day_of_week==b.day_of_week and a.effective_from<=(b.effective_until or date.max) and b.effective_from<=(a.effective_until or date.max) and a.start_time<b.end_time and a.end_time>b.start_time
 
 def check_overlap(db,payload,ignore=None):
+    if not payload.active: return
     from app.services.clinical_team import ensure_doctor_branch
     ensure_doctor_branch(db,db.get(Doctor,payload.doctor_id),payload.branch_id)
-    if not payload.active: return
     for other in db.scalars(select(DoctorSchedule).where(DoctorSchedule.doctor_id==payload.doctor_id,DoctorSchedule.active.is_(True))).all():
         if other.schedule_id!=ignore and overlaps(payload,other): raise HTTPException(409,"Doctor schedules overlap, including across branches. Disable or adjust the conflicting window first")
     for other in db.scalars(select(ScheduleException).where(ScheduleException.doctor_id==payload.doctor_id,ScheduleException.exception_type=="ADDITIONAL")).all():
