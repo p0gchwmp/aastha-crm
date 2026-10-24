@@ -1,9 +1,14 @@
 import {test,expect} from '@playwright/test';
 test('Admin schedules clinics and Reception appointment flow retains identity and history',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
-  const local=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
-  const day=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
-  const weekday=String((local.getDay()+6)%7);
+  const now=new Date();
+  const indiaDay=now.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
+  // Near midnight there cannot be enough same-day slots for two bookings and a move.
+  const future=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',hourCycle:'h23'}).format(now))>=22;
+  const target=new Date(indiaDay+'T12:00:00Z');
+  if(future)target.setUTCDate(target.getUTCDate()+1);
+  const day=target.toISOString().slice(0,10);
+  const weekday=String((target.getUTCDay()+6)%7);
   await page.goto('/login');
   await page.getByLabel('Username',{exact:true}).fill(process.env.STAFF_ADMIN_USERNAME||'admin');
   await page.getByLabel('Password',{exact:true}).fill(process.env.STAFF_ADMIN_PASSWORD||'Browser!Admin2026');
@@ -25,6 +30,7 @@ test('Admin schedules clinics and Reception appointment flow retains identity an
   await page.getByRole('button',{name:'Add schedule exception',exact:true}).click();
   const exception=page.getByRole('dialog',{name:'Schedule exception',exact:true});
   await exception.getByLabel('Exception branch',{exact:true}).selectOption({label:'Paloura'});
+  await exception.getByLabel('Exception date',{exact:true}).fill(day);
   await exception.getByLabel('Exception type',{exact:true}).selectOption('BREAK');
   await exception.getByLabel('Exception start time',{exact:true}).fill('00:00');
   await exception.getByLabel('Exception end time',{exact:true}).fill('00:15');
@@ -55,6 +61,7 @@ test('Admin schedules clinics and Reception appointment flow retains identity an
     await picker.getByRole('button',{name:new RegExp('^Select '+person)}).click();
     const booking=page.getByRole('dialog',{name:'Book appointment',exact:true});
     await booking.getByLabel('Branch',{exact:true}).selectOption({label:'Paloura'});
+    await booking.getByLabel('Appointment date',{exact:true}).fill(day);
     await expect(booking.getByLabel('Available slot (IST)',{exact:true}).locator('option')).not.toHaveCount(1);
     await booking.getByLabel('Available slot (IST)',{exact:true}).selectOption({index:2});
     await booking.getByRole('button',{name:'Confirm appointment',exact:true}).click();
@@ -82,11 +89,15 @@ test('Admin schedules clinics and Reception appointment flow retains identity an
   await page.getByRole('button',{name:'Close details',exact:true}).click();
   await book();
   row=page.getByRole('row').filter({hasText:person}).filter({has:page.getByRole('button',{name:'Mark arrived',exact:true})});
+  if(future){
+    await expect(row.getByRole('button',{name:'Mark arrived',exact:true})).toBeDisabled();
+  }else{
   await row.getByRole('button',{name:'Mark arrived',exact:true}).click();
   const complete=page.getByRole('row').filter({hasText:person}).getByRole('button',{name:'Complete appointment',exact:true});
   await expect(complete).toBeVisible();
   await complete.click();
   await expect(page.getByRole('row').filter({hasText:person}).getByText('Completed',{exact:true})).toBeVisible();
+  }
   await page.setViewportSize({width:390,height:844});
   await expect(page.getByRole('button',{name:'+ Book appointment',exact:true})).toBeVisible();
   expect(errors).toEqual([]);
