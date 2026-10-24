@@ -63,7 +63,7 @@ jobs:
           version=connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one();
           tables=connection.execute(text(\"SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')\")).scalar_one();
           connection.close();
-          assert version == '0013_diagnosis_master', version;
+          assert version == '0014_prescriptions', version;
           assert tables >= 63, tables"
 
       - name: Test reception staff lifecycle on PostgreSQL
@@ -100,6 +100,16 @@ jobs:
         env:
           STAFF_TEST_DATABASE_URL: postgresql+psycopg://aastha:ci-only-password@localhost:5432/aastha_ci
         run: pytest -q tests/test_diagnoses.py
+      - name: Verify prescription upgrade preserves populated diagnoses and clinical records
+        run: |
+          alembic downgrade 0013_diagnosis_master
+          python ../../tools/verify_prescription_upgrade.py snapshot
+          alembic upgrade head
+          python ../../tools/verify_prescription_upgrade.py verify
+      - name: Test reviewed medicines and concurrent manual prescriptions
+        env:
+          STAFF_TEST_DATABASE_URL: postgresql+psycopg://aastha:ci-only-password@localhost:5432/aastha_ci
+        run: pytest -q tests/test_prescriptions.py
       - name: Verify logical backup and restore of the test database
         run: |
           docker exec ${{ job.services.postgres.id }} pg_dump -U aastha -d aastha_ci -Fc > /tmp/staff-ci.dump
@@ -111,12 +121,12 @@ jobs:
           source = create_engine(os.environ['DATABASE_URL'])
           restored = create_engine(os.environ['DATABASE_URL'].rsplit('/', 1)[0] + '/aastha_restore')
           with source.connect() as a, restored.connect() as b:
-              for table in ('core.users', 'core.user_roles', 'audit.audit_events', 'crm.leads', 'crm.lead_contacts', 'crm.lead_interactions', 'crm.lead_status_history', 'crm.lead_dnc_history', 'scheduling.appointments', 'scheduling.doctor_schedules', 'scheduling.schedule_exceptions', 'patient.patients', 'patient.patient_contacts', 'patient.patient_addresses', 'crm.lead_patient_links', 'core.number_series', 'clinical.visits', 'clinical.visit_complaints', 'clinical.consultation_notes', 'clinical.consultation_note_revisions', 'clinical.assistant_preparations', 'clinical.assistant_preparation_revisions', 'clinical.diagnoses', 'clinical.visit_diagnoses', 'consultation_finance.consultation_bills', 'consultation_finance.payments', 'consultation_finance.entitlements', 'consultation_finance.entitlement_usages', 'consultation_finance.consultation_clearances', 'consultation_finance.complimentary_authorizations', 'consultation_finance.fee_versions', 'consultation_finance.policy_versions'):
+              for table in ('core.users', 'core.user_roles', 'audit.audit_events', 'crm.leads', 'crm.lead_contacts', 'crm.lead_interactions', 'crm.lead_status_history', 'crm.lead_dnc_history', 'scheduling.appointments', 'scheduling.doctor_schedules', 'scheduling.schedule_exceptions', 'patient.patients', 'patient.patient_contacts', 'patient.patient_addresses', 'crm.lead_patient_links', 'core.number_series', 'clinical.visits', 'clinical.visit_complaints', 'clinical.consultation_notes', 'clinical.consultation_note_revisions', 'clinical.assistant_preparations', 'clinical.assistant_preparation_revisions', 'clinical.diagnoses', 'clinical.visit_diagnoses', 'clinical.medicines', 'clinical.prescription_lines', 'consultation_finance.consultation_bills', 'consultation_finance.payments', 'consultation_finance.entitlements', 'consultation_finance.entitlement_usages', 'consultation_finance.consultation_clearances', 'consultation_finance.complimentary_authorizations', 'consultation_finance.fee_versions', 'consultation_finance.policy_versions'):
                   sql = text('SELECT count(*) FROM ' + table)
                   assert a.execute(sql).scalar_one() == b.execute(sql).scalar_one(), table
                   rows = text('SELECT to_jsonb(t) FROM ' + table + ' AS t ORDER BY to_jsonb(t)::text')
                   assert a.execute(rows).all() == b.execute(rows).all(), table + ' restored content'
-              assert b.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0013_diagnosis_master'
+              assert b.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0014_prescriptions'
           print('Logical backup restored; staff, Lead records, histories, audit and migration version match')
           PYTEST
 
@@ -143,6 +153,7 @@ jobs:
 
   staff-browser:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16

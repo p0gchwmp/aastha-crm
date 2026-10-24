@@ -1,0 +1,29 @@
+"use client";
+import {useEffect,useRef,useState} from "react";
+import {apiFetch} from "../lib/api";
+
+export type Medicine={medicine_id:string;brand:string;generic:string;strength:string;form:string;route:string;pack_size:string;manufacturer:string;active:boolean;requires_review:boolean;row_version:number;source_verification:string|null;source_row:number|null};
+export type Prescription={line_id:string;medicine_id:string;medicine_version:number;brand:string;generic:string;strength:string;form:string;dose:string;frequency:string;duration:string;route:string;quantity:string;site:string;instructions:string};
+export const prescriptionBody=(lines:Prescription[])=>lines.map(({line_id,medicine_id,medicine_version,dose,frequency,duration,route,quantity,site,instructions})=>({line_id,medicine_id,medicine_version,dose,frequency,duration,route,quantity,site,instructions}));
+export const incompletePrescription=(lines:Prescription[])=>lines.findIndex(l=>![l.dose,l.frequency,l.duration,l.route].every(x=>x.trim()));
+
+export function PrescriptionSummary({lines}:{lines?:Prescription[]}){
+ if(!lines?.length)return <p className="muted">No medicines recorded.</p>;
+ return <ol className="prescription-summary">{lines.map((l,i)=><li key={l.line_id||i}><strong>{l.brand||l.generic} · {l.strength} · {l.form}</strong><div className="muted">Composition: {l.generic}</div><p>Dose/amount: {l.dose} · Route: {l.route} · Frequency: {l.frequency} · Duration: {l.duration}</p>{l.site&&<p>Site: {l.site}</p>}{l.quantity&&<p>Quantity: {l.quantity}</p>}{l.instructions&&<p className="prescription-instructions">Instructions: {l.instructions}</p>}</li>)}</ol>
+}
+
+const fields:{key:keyof Prescription;label:string;required?:boolean;max:number}[]=[{key:"dose",label:"Dose / amount",required:true,max:240},{key:"route",label:"Route",required:true,max:120},{key:"frequency",label:"Frequency",required:true,max:120},{key:"duration",label:"Duration",required:true,max:120},{key:"quantity",label:"Quantity",max:120},{key:"site",label:"Site / area",max:240}];
+
+export default function PrescriptionEditor({value,onChange,disabled}:{value:Prescription[];onChange:(lines:Prescription[])=>void;disabled:boolean}){
+ const [query,setQuery]=useState(""),[rows,setRows]=useState<Medicine[]>([]),[loading,setLoading]=useState(false),[error,setError]=useState("");
+ const search=useRef<HTMLInputElement>(null);const term=query.trim();
+ useEffect(()=>{let live=true;setRows([]);setError("");setLoading(false);if(disabled||term.length<2)return;setLoading(true);const timer=setTimeout(()=>{apiFetch<Medicine[]>("/medicines?q="+encodeURIComponent(term)+"&limit=10").then(x=>{if(live)setRows(x)}).catch(e=>{if(live)setError(e.message)}).finally(()=>{if(live)setLoading(false)})},200);return()=>{live=false;clearTimeout(timer)}},[term,disabled]);
+ const add=(m:Medicine)=>{if(value.length>=30)return;onChange([...value,{line_id:crypto.randomUUID(),medicine_id:m.medicine_id,medicine_version:m.row_version,brand:m.brand,generic:m.generic,strength:m.strength,form:m.form,route:m.route,dose:"",frequency:"",duration:"",quantity:"",site:"",instructions:""}]);setQuery("");setRows([]);search.current?.focus()};
+ const change=(id:string,patch:Partial<Prescription>)=>onChange(value.map(l=>l.line_id===id?{...l,...patch}:l));
+ return <section className="prescription-editor" aria-label="Visit prescription"><div className="diagnosis-heading"><h3>Prescription</h3><span className="badge">{value.length} medicine lines</span></div><p className="muted">{disabled?"Recorded medicines and Doctor instructions.":"Select a reviewed product, enter the prescription details, then Save Notes. No doses are calculated automatically."}</p>
+ {disabled?<PrescriptionSummary lines={value}/>:<><div className="prescription-lines">{value.map((l,i)=><article className="prescription-line" key={l.line_id} aria-label={"Medicine line "+(i+1)}><div className="row"><strong className="grow">{i+1}. {l.brand||l.generic} · {l.strength} · {l.form}</strong><button type="button" className="ghost" aria-label={"Remove medicine line "+(i+1)} onClick={()=>onChange(value.filter(x=>x.line_id!==l.line_id))}>Remove</button></div><p className="muted">Composition: {l.generic}</p><div className="prescription-fields">{fields.map(f=><label key={f.key}>{f.label}{f.required?" *":""}<input aria-label={f.label+" line "+(i+1)} value={l[f.key]} maxLength={f.max} required={f.required} onChange={e=>change(l.line_id,{[f.key]:e.target.value})}/></label>)}<label className="prescription-wide">Instructions<textarea aria-label={"Instructions line "+(i+1)} maxLength={2000} value={l.instructions} onChange={e=>change(l.line_id,{instructions:e.target.value})}/></label></div></article>)}</div>{!value.length&&<p className="muted">No medicines recorded.</p>}
+ <label>Search medicines<input ref={search} aria-label="Search medicines" placeholder="Type brand, generic or strength (at least 2 letters)" value={query} maxLength={300} disabled={value.length>=30} onChange={e=>{setQuery(e.target.value);setRows([]);setError("")}} onKeyDown={e=>{if(e.key==="Escape"){setQuery("");setRows([])}}}/></label><p className="muted">Only active, Doctor-reviewed products are selectable. New products and strengths can be added in Medicine Catalogue. Maximum 30 lines.</p>
+ {term.length>=2&&<div className="diagnosis-results" aria-label="Medicine suggestions">{loading?<p role="status">Searching medicines…</p>:error?<p role="alert">{error}</p>:rows.length?<ul>{rows.map(m=><li key={m.medicine_id}><div><strong>{m.brand||m.generic} · {m.strength} · {m.form}</strong><span className="diagnosis-category">{m.generic} · {m.route}{m.pack_size?" · "+m.pack_size:""}</span></div><button type="button" aria-label={"Add medicine "+(m.brand||m.generic)+" "+m.strength} onClick={()=>add(m)}>Add</button></li>)}</ul>:<p>No reviewed products match. Check Medicine Catalogue to add or review a product.</p>}</div>}
+ </>}
+ </section>
+}

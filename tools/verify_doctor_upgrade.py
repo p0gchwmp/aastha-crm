@@ -13,6 +13,6 @@ with engine.connect() as c:
         path.write_text(encoded)
     else:
         assert path.read_text() == encoded, "Doctor migration changed existing clinic records"
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0013_diagnosis_master"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0014_prescriptions"
         assert c.execute(text("SELECT count(*) FROM clinical.consultation_notes")).scalar_one() == 0
 print("Doctor migration preserved all existing operational contents and identities")
