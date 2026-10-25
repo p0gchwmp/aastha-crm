@@ -83,3 +83,7 @@ app.include_router(diagnoses.router, prefix="/api/v1")
 
 from app.api.routes import medicines
 app.include_router(medicines.router, prefix="/api/v1")
+
+
+from app.api.routes import patient_safety
+app.include_router(patient_safety.router, prefix="/api/v1")
