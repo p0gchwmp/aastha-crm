@@ -186,6 +186,10 @@ def mutate(visit_id: uuid.UUID, action: str, payload: NoteAction, db: Session = 
             set_visit_diagnoses(db, visit, doctor, user.organization_id, payload.diagnoses)
             set_visit_prescriptions(db, visit, doctor, user.organization_id, payload.prescriptions)
         if action == "complete":
+            from app.api.routes.patient_safety import assessment as safety_assessment
+            safety = safety_assessment(db, visit_id, True)
+            if safety and not safety.reviewed_at:
+                raise HTTPException(409, "Review and confirm the current safety record before completing this consultation")
             from app.api.routes.clinical_preparations import get_preparation
             preparation = get_preparation(db, visit_id, True)
             if preparation and preparation.state != "REVIEWED":
@@ -203,6 +207,8 @@ def mutate(visit_id: uuid.UUID, action: str, payload: NoteAction, db: Session = 
         snapshot = {key: (getattr(note, key).isoformat() if isinstance(getattr(note, key), date) else getattr(note, key)) for key in FIELDS}
         snapshot["prescriptions"] = visit_prescriptions(db, visit_id)
         snapshot["diagnoses"] = [{**d, "diagnosis_id": str(d["diagnosis_id"])} for d in visit_diagnoses(db, visit_id)]
+        from app.api.routes.patient_safety import assessment as safety_assessment, snapshot as safety_snapshot
+        snapshot["patient_safety"] = safety_snapshot(db, safety_assessment(db, visit_id))
         snapshot.update(visit_version=visit.row_version, note_version=note.row_version, status=target)
         db.add(ConsultationNoteRevision(note_id=note.note_id, actor_user_id=user.user_id, request_id=payload.request_id, request_hash=digest, action=action.upper(), occurred_at=now, snapshot=snapshot))
         from app.services.audit import log_audit
@@ -215,3 +221,4 @@ def mutate(visit_id: uuid.UUID, action: str, payload: NoteAction, db: Session = 
     except Exception:
         db.rollback()
         raise
+
